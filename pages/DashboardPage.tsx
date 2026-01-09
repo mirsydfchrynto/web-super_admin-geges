@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from 'react';
 import { Layout } from '../components/Layout';
 import { collection, query, where, getCountFromServer, getDocs } from 'firebase/firestore';
@@ -145,7 +144,7 @@ export const DashboardPage: React.FC = () => {
         </div>
         <div className="flex items-center gap-2 text-xs font-bold text-gold bg-gold/10 px-4 py-2 rounded-full border border-gold/20">
           <div className="w-2 h-2 rounded-full bg-gold animate-pulse"></div>
-          {t('common.system_online')}
+          {t('common.system_online') }
         </div>
       </div>
 
@@ -234,6 +233,7 @@ export const DashboardPage: React.FC = () => {
                         </div>
                         <button 
                           onClick={() => navigate('/inbox')}
+                          aria-label="View Details"
                           className="p-2 text-textSecondary hover:text-white bg-transparent hover:bg-white/10 rounded-lg transition-all"
                         >
                           <ArrowRight size={18} />

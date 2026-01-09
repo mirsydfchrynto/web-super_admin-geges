@@ -1,4 +1,3 @@
-
 import React, { useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
@@ -8,6 +7,7 @@ import { fetchRegistrations } from '../store/registrationsSlice';
 import { toggleLanguage } from '../store/languageSlice';
 import { useTranslation } from '../hooks/useTranslation';
 import { auth } from '../lib/firebase';
+import { getDisplayImageUrl } from '../lib/utils';
 import { 
   LayoutDashboard, 
   Inbox, 
@@ -15,9 +15,12 @@ import {
   LogOut, 
   Scissors,
   Users,
-  Languages
+  Languages,
+  Receipt, // Import new icon
+  MessageSquare // Import MessageSquare
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import logoImg from '../ivon.png';
 
 export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user } = useSelector((state: RootState) => state.auth);
@@ -36,6 +39,8 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
   const pendingCount = registrations.filter(r => 
     ['waiting_proof', 'payment_submitted', 'pending_payment'].includes(r.status)
   ).length;
+
+  const refundCount = registrations.filter(r => r.status === 'cancellation_requested').length;
 
   const handleLogout = async () => {
     try {
@@ -56,8 +61,15 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
       icon: <Inbox size={20} />,
       badge: pendingCount > 0 ? pendingCount : null 
     },
+    { 
+      label: 'Request Pembatalan', 
+      path: '/refunds', 
+      icon: <Receipt size={20} />,
+      badge: refundCount > 0 ? refundCount : null 
+    },
     { label: t('common.tenants'), path: '/tenants', icon: <Store size={20} /> }, 
     { label: t('common.users'), path: '/users', icon: <Users size={20} /> },
+    { label: 'Ulasan & Sentimen', path: '/reviews', icon: <MessageSquare size={20} /> },
   ];
 
   return (
@@ -67,7 +79,7 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
         <div className="p-8 flex items-center gap-4 border-b border-glassBorder/50">
           <div className="w-10 h-10 rounded-lg overflow-hidden bg-black border border-gold/20 flex-shrink-0">
              <img 
-               src="geges-logo.png" 
+               src={logoImg} 
                alt="Logo" 
                className="w-full h-full object-cover"
                onError={(e) => {
@@ -133,7 +145,7 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
           <div className="flex items-center gap-3 px-2 py-2">
             <div className="w-10 h-10 rounded-full bg-glass border border-gold/30 overflow-hidden">
                {user?.photo_base64 ? (
-                 <img src={`data:image/jpeg;base64,${user.photo_base64}`} alt="profile" className="w-full h-full object-cover"/>
+                 <img src={getDisplayImageUrl(user.photo_base64)!} alt="profile" className="w-full h-full object-cover"/>
                ) : (
                  <div className="w-full h-full flex items-center justify-center text-xs font-bold text-gold">SA</div>
                )}

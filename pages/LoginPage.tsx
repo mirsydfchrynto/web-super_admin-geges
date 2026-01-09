@@ -70,7 +70,7 @@ export const LoginPage: React.FC = () => {
           <div className="mb-6 rounded-[24px] shadow-2xl shadow-gold/10 p-1 bg-gradient-to-br from-gold/30 to-transparent">
             <div className="bg-black rounded-[22px] overflow-hidden w-32 h-32 flex items-center justify-center relative">
                <img 
-                 src="geges-logo.png" 
+                 src="ivon.png" 
                  alt="Geges Logo" 
                  className="w-full h-full object-contain hover:scale-105 transition-transform duration-500"
                  onError={(e) => {

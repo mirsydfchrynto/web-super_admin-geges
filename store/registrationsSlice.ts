@@ -25,12 +25,9 @@ export const fetchRegistrations = createAsyncThunk(
     try {
       const tenantsRef = collection(db, 'tenants');
       
-      // FIX: Added 'awaiting_payment' because Flutter app creates tenants with this status 
-      // and doesn't explicitly change root status upon payment submission (only updates payment map).
-      const q = query(
-        tenantsRef, 
-        where('status', 'in', ['waiting_proof', 'payment_submitted', 'pending_payment', 'awaiting_payment']) 
-      );
+      // FETCH ALL TENANTS (Client-side filtering handles tabs)
+      // Previously filtered only pending statuses, which hid history.
+      const q = query(tenantsRef); 
 
       const snapshot = await getDocs(q);
       const data: Tenant[] = [];

@@ -1,4 +1,5 @@
 
+import { useCallback } from 'react';
 import { useSelector } from 'react-redux';
 import { RootState } from '../store';
 import { translations } from '../lib/translations';
@@ -6,8 +7,8 @@ import { translations } from '../lib/translations';
 export const useTranslation = () => {
   const currentLanguage = useSelector((state: RootState) => state.language.currentLanguage);
   
-  // Helper to get nested properties safely
-  const t = (key: string) => {
+  // Helper to get nested properties safely - Memoized to prevent useEffect loops
+  const t = useCallback((key: string) => {
     const keys = key.split('.');
     let value: any = translations[currentLanguage];
     
@@ -19,9 +20,9 @@ export const useTranslation = () => {
       }
     }
     return value;
-  };
+  }, [currentLanguage]);
 
-  const formatDate = (timestamp: any) => {
+  const formatDate = useCallback((timestamp: any) => {
     if (!timestamp) return '-';
     const date = timestamp.seconds ? new Date(timestamp.seconds * 1000) : new Date(timestamp);
     
@@ -30,7 +31,7 @@ export const useTranslation = () => {
       month: 'short',
       year: 'numeric'
     }).format(date);
-  };
+  }, [currentLanguage]);
 
   return { t, language: currentLanguage, formatDate };
 };

@@ -31,7 +31,7 @@ export interface Tenant {
   owner_phone?: string;
   owner_uid: string;
   address?: string;
-  status: 'draft' | 'awaiting_payment' | 'waiting_proof' | 'payment_submitted' | 'active' | 'rejected' | 'cancelled';
+  status: 'draft' | 'awaiting_payment' | 'waiting_proof' | 'payment_submitted' | 'active' | 'rejected' | 'cancelled' | 'cancellation_requested';
   rejection_reason?: string;
   
   // Documents
@@ -43,6 +43,16 @@ export interface Tenant {
   payment?: TenantPayment;
   invoice?: TenantInvoice;
   
+  // Cancellation / Refund Request
+  cancellation_request?: {
+    reason: string;
+    requested_at: any;
+    requested_by: string;
+  };
+  refund_proof_url?: string;
+  refund_status?: 'pending' | 'completed';
+  refunded_at?: any;
+
   // Metadata
   history?: TenantHistory[];
   created_at?: any;
@@ -74,6 +84,7 @@ export interface Barbershop {
   barber_selection_fee: number;
   google_maps_url?: string;
   whatsapp_number?: string;
+  created_at?: any;
 }
 
 // Updated to match UserData.fromFirestore preference (snake_case keys)

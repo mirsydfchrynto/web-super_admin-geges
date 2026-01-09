@@ -6,7 +6,9 @@ import { InboxPage } from './pages/InboxPage';
 import { TenantsPage } from './pages/TenantsPage';
 import { TenantDetailsPage } from './pages/TenantDetailsPage';
 import { BarbershopDetailsPage } from './pages/BarbershopDetailsPage';
-import { UsersPage } from './pages/UsersPage'; // Import New Page
+import { UsersPage } from './pages/UsersPage';
+import { RefundRequestsPage } from './pages/RefundRequestsPage'; // Import New Page
+import { ReviewsPage } from './pages/ReviewsPage'; // Import Reviews Page
 import { Toaster } from 'react-hot-toast';
 import { auth, db } from './lib/firebase';
 import { useDispatch, useSelector } from 'react-redux';
@@ -127,6 +129,22 @@ const App: React.FC = () => {
             element={
               <PrivateRoute>
                 <UsersPage />
+              </PrivateRoute>
+            } 
+          />
+          <Route 
+            path="/refunds" 
+            element={
+              <PrivateRoute>
+                <RefundRequestsPage />
+              </PrivateRoute>
+            } 
+          />
+          <Route 
+            path="/reviews" 
+            element={
+              <PrivateRoute>
+                <ReviewsPage />
               </PrivateRoute>
             } 
           />

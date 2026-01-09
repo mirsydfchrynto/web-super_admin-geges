@@ -23,6 +23,7 @@ import {
 import toast from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from '../hooks/useTranslation';
+import { getDisplayImageUrl } from '../lib/utils';
 
 interface UserWithId extends User {
   id: string;
@@ -148,6 +149,7 @@ export const UsersPage: React.FC = () => {
              <select 
                value={roleFilter}
                onChange={(e) => setRoleFilter(e.target.value as any)}
+               aria-label="Filter by Role"
                className="w-full sm:w-auto bg-cardBg border border-glassBorder rounded-lg pl-10 pr-8 py-2 text-sm text-white focus:outline-none focus:border-blue-500 appearance-none cursor-pointer"
              >
                <option value="all">All Roles</option>
@@ -203,7 +205,7 @@ export const UsersPage: React.FC = () => {
                       <div className="flex items-center gap-3">
                         <div className="w-10 h-10 rounded-full bg-gray-700 overflow-hidden flex items-center justify-center flex-shrink-0 border border-gray-600">
                           {user.photo_base64 ? (
-                            <img src={`data:image/jpeg;base64,${user.photo_base64}`} alt={user.name} className="w-full h-full object-cover" />
+                            <img src={getDisplayImageUrl(user.photo_base64)!} alt={user.name} className="w-full h-full object-cover" />
                           ) : (
                             <UserIcon size={20} className="text-gray-400" />
                           )}
@@ -261,6 +263,7 @@ export const UsersPage: React.FC = () => {
                         <button 
                           onClick={() => user.email && handleSendPasswordReset(user.email)}
                           title="Send Password Reset Email"
+                          aria-label="Send Password Reset Email"
                           className="p-2 bg-white/5 hover:bg-white/10 text-gray-400 hover:text-orange-400 rounded-lg transition-colors border border-transparent hover:border-orange-500/30"
                         >
                           <KeyRound size={16} />

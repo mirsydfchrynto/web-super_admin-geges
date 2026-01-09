@@ -3,6 +3,7 @@ import 'firebase/compat/auth';
 import { doc, writeBatch, serverTimestamp, collection, arrayUnion, Timestamp } from 'firebase/firestore';
 import { firebaseConfig, db } from '../lib/firebase';
 import { Tenant, Barbershop, User, Notification } from '../types';
+import { DEFAULT_BARBERSHOP_IMAGE, DEFAULT_SERVICES, DEFAULT_FACILITIES, DEFAULT_OPEN_HOUR, DEFAULT_CLOSE_HOUR } from '../lib/constants';
 
 /**
  * Generates a secure random password for the new tenant admin
@@ -18,11 +19,7 @@ const generatePassword = (length = 8): string => {
 
 /**
  * SCENARIO B: APPROVE TENANT & AUTOMATED PROVISIONING
- * 1. Creates Auth User (via Secondary App to avoid admin logout)
- * 2. Creates Barbershop Document (Default Data)
- * 3. Creates User Profile (role: admin_owner)
- * 4. Updates Tenant (Active, Verified, Inject Credentials for Customer visibility)
- * 5. Sends Notification
+ * Improved with Atomic Rollback and Centralized Constants
  */
 export const approveTenantRegistration = async (tenant: Tenant) => {
   console.log("=== START PROVISIONING ===");
@@ -31,6 +28,7 @@ export const approveTenantRegistration = async (tenant: Tenant) => {
   const password = generatePassword();
   const secondaryAppName = `provisioning-${Date.now()}`;
   let secondaryApp: firebase.app.App | undefined;
+  let createdUser: firebase.User | null = null;
 
   try {
     // 1. Initialize Secondary App (Compat SDK)
@@ -44,14 +42,14 @@ export const approveTenantRegistration = async (tenant: Tenant) => {
     // 2. Create User in Firebase Auth
     console.log(`2. Creating Auth User for ${tenant.owner_email}...`);
     const userCredential = await secondaryAuth.createUserWithEmailAndPassword(tenant.owner_email, password);
-    const newOwnerUid = userCredential.user?.uid;
+    createdUser = userCredential.user;
+    const newOwnerUid = createdUser?.uid;
     
     if (!newOwnerUid) throw new Error("Could not create user or retrieve UID.");
     
     console.log("   > Auth Created. New UID:", newOwnerUid);
     
-    // Immediately sign out the secondary user
-    await secondaryAuth.signOut();
+    // NOTE: We do NOT sign out yet. We keep the session to allow rollback (delete) if needed.
 
     // 3. Prepare Database Batch
     console.log("3. Preparing Database Writes...");
@@ -62,23 +60,22 @@ export const approveTenantRegistration = async (tenant: Tenant) => {
     console.log("   > Generated Shop ID:", newShopId);
     const barbershopRef = doc(db, 'barbershops', newShopId);
     
-    // Data "Seadanya" (Defaults + Registration Data)
     const newBarbershopData: Barbershop = {
       name: tenant.business_name,
       address: tenant.address || "Alamat belum diatur", 
       whatsapp_number: tenant.owner_phone || "",
-      admin_uid: newOwnerUid, // Link to the new Auth UID
+      admin_uid: newOwnerUid,
       
-      // Defaults for starter shop
+      // Use Constants
       rating: 5.0, 
-      imageUrl: "https://firebasestorage.googleapis.com/v0/b/geges-smartbarber-project.appspot.com/o/defaults%2Fbarbershop_placeholder.png?alt=media&token=default",
+      imageUrl: DEFAULT_BARBERSHOP_IMAGE,
       gallery_urls: [], 
-      services: ["Potong Rambut", "Cukur Jenggot"], 
-      facilities: ["AC", "Parkir", "Wifi"], 
-      isOpen: false, // Closed by default until owner sets it up
-      isActive: true, // Subscription is active
-      open_hour: 9,
-      close_hour: 21,
+      services: DEFAULT_SERVICES, 
+      facilities: DEFAULT_FACILITIES, 
+      isOpen: false, 
+      isActive: true, 
+      open_hour: DEFAULT_OPEN_HOUR,
+      close_hour: DEFAULT_CLOSE_HOUR,
       weekly_holidays: [],
       barber_selection_fee: 0,
       google_maps_url: "",
@@ -88,12 +85,11 @@ export const approveTenantRegistration = async (tenant: Tenant) => {
     // --- B. Create User Document (New Admin Owner) ---
     const userRef = doc(db, 'users', newOwnerUid);
     
-    // Data User "Seadanya"
     const newUserData: User = {
       name: tenant.owner_name,
       email: tenant.owner_email,
-      role: 'admin_owner', // CRITICAL: This gives them access to the Owner App
-      barbershop_id: newShopId, // Links User to the new Shop
+      role: 'admin_owner', 
+      barbershop_id: newShopId, 
       phone_number: tenant.owner_phone || "", 
       photo_base64: "", 
       favorite_barbershops: [],
@@ -113,7 +109,7 @@ export const approveTenantRegistration = async (tenant: Tenant) => {
 
     const tenantUpdates = {
       status: 'active',
-      'payment.verificationStatus': 'verified', // Auto-verify proof
+      'payment.verificationStatus': 'verified',
       // INJECT CREDENTIALS so Customer can see them in their app
       admin_email: tenant.owner_email,
       temp_password: password,
@@ -126,8 +122,8 @@ export const approveTenantRegistration = async (tenant: Tenant) => {
     // --- D. Create Notification (Sent to ORIGINAL Customer UID) ---
     const notificationRef = doc(collection(db, 'notifications'));
     const notificationData: Notification = {
-      user_id: tenant.owner_uid, // Send to the person who applied
-      title: "Pendaftaran Disetujui! 🚀",
+      user_id: tenant.owner_uid,
+      title: "Pendaftaran Disetujui",
       body: `Selamat! Barbershop "${tenant.business_name}" telah aktif.\n\nSilakan login ke aplikasi OWNER dengan:\nEmail: ${tenant.owner_email}\nPassword: ${password}`,
       delivered: false,
       created_at: serverTimestamp()
@@ -148,6 +144,19 @@ export const approveTenantRegistration = async (tenant: Tenant) => {
 
   } catch (error: any) {
     console.error("!!! PROVISIONING FAILED !!!", error);
+    
+    // ROLLBACK MECHANISM
+    if (createdUser) {
+      console.warn("Performing Rollback: Deleting created Auth User...", createdUser.uid);
+      try {
+        await createdUser.delete();
+        console.log("Rollback successful: User deleted.");
+      } catch (cleanupError) {
+        console.error("CRITICAL: Failed to rollback user deletion!", cleanupError);
+        // This is a rare worst-case, but at least we tried.
+      }
+    }
+
     if (error.code === 'auth/email-already-in-use') {
       throw new Error(`Email ${tenant.owner_email} sudah terdaftar. Gunakan email lain.`);
     }
@@ -156,6 +165,8 @@ export const approveTenantRegistration = async (tenant: Tenant) => {
     // 5. Cleanup Secondary App
     if (secondaryApp) {
       console.log("5. Cleaning up secondary app...");
+      // Ensure we are signed out before deleting the app instance (just in case)
+      await secondaryApp.auth().signOut().catch(() => {});
       await secondaryApp.delete(); 
     }
   }
@@ -206,5 +217,55 @@ export const rejectTenantRegistration = async (tenant: Tenant, reason: string) =
   } catch (error: any) {
     console.error("Rejection Error:", error);
     throw new Error(error.message || "Failed to reject tenant");
+  }
+};
+
+/**
+ * SCENARIO C: APPROVE REFUND (CANCEL WITH REFUND)
+ */
+export const approveRefund = async (tenant: Tenant, refundProofUrl: string, adminNote: string) => {
+  console.log("=== APPROVING REFUND ===", tenant.id);
+  
+  const batch = writeBatch(db);
+  const tenantRef = doc(db, 'tenants', tenant.id);
+
+  try {
+     const historyEntry = {
+      created_at: Timestamp.now(),
+      note: `Refund Disetujui & Dibatalkan. Note: ${adminNote}`,
+      status: 'cancelled',
+      type: 'refund_completed' 
+    };
+
+    const updates: any = {
+       status: 'cancelled',
+       'payment.verificationStatus': 'refunded',
+       'invoice.status': 'refunded',
+       'invoice.cancel_reason': `Refund Processed: ${adminNote}`,
+       'refund_proof_url': refundProofUrl,
+       'refund_status': 'completed',
+       'refunded_at': serverTimestamp(),
+       history: arrayUnion(historyEntry),
+       updated_at: serverTimestamp()
+    };
+
+    batch.update(tenantRef, updates);
+
+    // Notification
+    const notificationRef = doc(collection(db, 'notifications'));
+    const notificationData: Notification = {
+      user_id: tenant.owner_uid,
+      title: "Pengembalian Dana Berhasil",
+      body: `Permintaan refund "${tenant.business_name}" telah diproses.\nAdmin Note: ${adminNote}\nSilakan cek detail di aplikasi.`,
+      delivered: false,
+      created_at: serverTimestamp()
+    };
+    batch.set(notificationRef, notificationData);
+
+    await batch.commit();
+    return { success: true };
+  } catch (error: any) {
+    console.error("Refund Error:", error);
+    throw new Error(error.message || "Failed to approve refund");
   }
 };

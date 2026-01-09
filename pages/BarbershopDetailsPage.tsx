@@ -1,14 +1,15 @@
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Layout } from '../components/Layout';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { Barbershop } from '../types';
-import { ArrowLeft, Save, Loader2, Store, MapPin, Clock, ImageIcon, Scissors, ShieldAlert } from 'lucide-react';
+import { ArrowLeft, Save, Loader2, Store, MapPin, Clock, ImageIcon, Scissors, ShieldAlert, Upload, X } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useForm } from 'react-hook-form';
 import { useTranslation } from '../hooks/useTranslation';
+import { getDisplayImageUrl } from '../lib/utils';
 
 export const BarbershopDetailsPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -16,8 +17,9 @@ export const BarbershopDetailsPage: React.FC = () => {
   const { t } = useTranslation();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const { register, handleSubmit, reset, formState: { isDirty }, watch } = useForm<Barbershop>();
-  const isActiveValue = watch("isActive");
+  const { register, handleSubmit, reset, formState: { isDirty }, watch, setValue } = useForm<Barbershop>();
+  const imageUrlValue = watch("imageUrl");
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     const fetchBarbershop = async () => {
@@ -34,7 +36,7 @@ export const BarbershopDetailsPage: React.FC = () => {
       }
     };
     fetchBarbershop();
-  }, [id, navigate, reset]);
+  }, [id, reset]);
 
   const onSubmit = async (data: Barbershop) => {
     if (!id) return;
@@ -45,18 +47,36 @@ export const BarbershopDetailsPage: React.FC = () => {
         ...data,
         open_hour: Number(data.open_hour),
         close_hour: Number(data.close_hour),
-        barber_selection_fee: Number(data.barber_selection_fee)
+        barber_selection_fee: Number(data.barber_selection_fee),
+        isOpen: Boolean(data.isOpen) // Ensure boolean
       };
-      if (payload.isActive === false) payload.isOpen = false;
-
+      
       await updateDoc(docRef, payload);
-      toast.success(payload.isActive ? "Barbershop updated!" : "Barbershop SUSPENDED & CLOSED.");
-      reset(data);
+      toast.success("Barbershop updated successfully!");
+      reset(payload); // Reset with payload to ensure types match and dirty state clears
     } catch (error: any) {
       toast.error(`Update failed: ${error.message}`);
     } finally {
       setSaving(false);
     }
+  };
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Check size (e.g., 1MB limit for Firestore field safety)
+    if (file.size > 1024 * 1024) {
+      toast.error("Image too large (max 1MB)");
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const base64String = reader.result as string;
+      setValue("imageUrl", base64String, { shouldDirty: true });
+    };
+    reader.readAsDataURL(file);
   };
 
   const inputClass = "w-full bg-cardBg border border-transparent rounded-[20px] px-5 py-3 text-white placeholder-gray-500 focus:border-gold focus:ring-0 outline-none transition-all duration-300 hover:bg-white/5";
@@ -113,6 +133,20 @@ export const BarbershopDetailsPage: React.FC = () => {
               <h3 className="text-base font-bold text-white flex items-center gap-2">
                 <Clock size={18} className="text-gold" /> Operations
               </h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-4">
+                 <div className="col-span-1 md:col-span-2 border border-glassBorder rounded-2xl p-4 flex items-center justify-between bg-white/5">
+                    <div>
+                       <h4 className={`font-bold ${watch("isOpen") ? 'text-success' : 'text-gray-400'}`}>
+                          {watch("isOpen") ? "Barbershop OPEN" : "Barbershop CLOSED"}
+                       </h4>
+                       <p className="text-xs text-textSecondary mt-1">Manual override for opening status.</p>
+                    </div>
+                    <label className="relative inline-flex items-center cursor-pointer">
+                      <input type="checkbox" {...register("isOpen")} className="sr-only peer" />
+                      <div className="w-14 h-7 bg-black peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-6 after:w-6 after:transition-all peer-checked:bg-success"></div>
+                    </label>
+                 </div>
+              </div>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <div>
                   <label className={labelClass}>Open (24h)</label>
@@ -134,28 +168,51 @@ export const BarbershopDetailsPage: React.FC = () => {
               <h3 className="text-base font-bold text-white flex items-center gap-2">
                 <ImageIcon size={18} className="text-gold" /> Branding
               </h3>
-              <div>
-                <label className={labelClass}>Image URL / Base64</label>
-                <input {...register("imageUrl")} className={inputClass} />
+              <div className="space-y-4">
+                <label className={labelClass}>Shop Image</label>
+                <div className="flex flex-col md:flex-row gap-6 items-start">
+                  <div className="w-full md:w-1/3 aspect-square rounded-2xl bg-cardBg border border-glassBorder overflow-hidden flex items-center justify-center group relative">
+                    {imageUrlValue ? (
+                      <>
+                        <img src={getDisplayImageUrl(imageUrlValue)!} className="w-full h-full object-cover" alt="Preview" />
+                        <button 
+                          type="button"
+                          onClick={() => setValue("imageUrl", "", { shouldDirty: true })}
+                          className="absolute top-2 right-2 p-1 bg-black/50 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                        >
+                          <X size={16} />
+                        </button>
+                      </>
+                    ) : (
+                      <Store size={48} className="text-gray-700" />
+                    )}
+                  </div>
+                  
+                  <div className="flex-1 space-y-4 w-full">
+                    <div className="flex gap-2">
+                      <button 
+                        type="button" 
+                        onClick={() => fileInputRef.current?.click()}
+                        className="px-4 py-2 bg-white/5 hover:bg-white/10 text-white rounded-xl text-sm font-bold flex items-center gap-2 transition-colors border border-glassBorder"
+                      >
+                        <Upload size={16} /> Upload Image
+                      </button>
+                      <input 
+                        type="file" 
+                        ref={fileInputRef} 
+                        onChange={handleFileChange} 
+                        accept="image/*" 
+                        className="hidden" 
+                      />
+                    </div>
+                    <p className="text-[10px] text-textSecondary uppercase tracking-widest">Or enter URL / Base64 manually:</p>
+                    <input {...register("imageUrl")} className={inputClass} placeholder="https://... or raw base64" />
+                  </div>
+                </div>
               </div>
             </div>
 
-            {/* Admin Actions */}
-            <div className="space-y-6 pt-6 border-t border-glassBorder/50">
-              <h3 className="text-base font-bold text-white flex items-center gap-2">
-                <ShieldAlert size={18} className="text-danger" /> Danger Zone
-              </h3>
-              <div className={`border rounded-2xl p-5 flex items-center justify-between ${isActiveValue ? 'bg-success/5 border-success/20' : 'bg-danger/5 border-danger/20'}`}>
-                <div>
-                   <h4 className={`font-bold ${isActiveValue ? 'text-success' : 'text-danger'}`}>{t('common.status')}</h4>
-                   <p className="text-xs text-textSecondary mt-1">Controls global visibility.</p>
-                </div>
-                <label className="relative inline-flex items-center cursor-pointer">
-                  <input type="checkbox" {...register("isActive")} className="sr-only peer" />
-                  <div className="w-14 h-7 bg-cardBg peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-6 after:w-6 after:transition-all peer-checked:bg-success"></div>
-                </label>
-              </div>
-            </div>
+            {/* Admin Actions - REMOVED as per request (Managed in Tenants Page) */}
 
             <div className="pt-6 flex justify-end">
               <button 

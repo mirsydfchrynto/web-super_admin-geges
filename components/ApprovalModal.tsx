@@ -2,11 +2,13 @@ import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { X, CheckCircle, XCircle, AlertCircle, Loader2, FileText, Download, ExternalLink, Clock, FileCheck, Receipt, Send } from 'lucide-react';
 import { Tenant } from '../types';
-import { approveTenantRegistration, rejectTenantRegistration } from '../services/provisioningService';
+import { approveTenantRegistration, rejectTenantRegistration, approveRefund } from '../services/provisioningService';
 import { doc, getDoc } from 'firebase/firestore';
-import { db } from '../lib/firebase';
+import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import app, { db } from '../lib/firebase';
 import toast from 'react-hot-toast';
 import { useTranslation } from '../hooks/useTranslation';
+import { getDisplayImageUrl } from '../lib/utils';
 
 interface ApprovalModalProps {
   tenant: Tenant;
@@ -21,6 +23,11 @@ export const ApprovalModal: React.FC<ApprovalModalProps> = ({ tenant, onClose, o
   // Rejection UI State
   const [isRejecting, setIsRejecting] = useState(false);
   const [rejectionReason, setRejectionReason] = useState("");
+
+  // Refund UI State
+  const [refundProofFile, setRefundProofFile] = useState<File | null>(null);
+  const [refundNote, setRefundNote] = useState("");
+  const isRefundRequested = tenant.status === 'cancellation_requested';
 
   const { t, formatDate } = useTranslation();
   
@@ -103,6 +110,40 @@ export const ApprovalModal: React.FC<ApprovalModalProps> = ({ tenant, onClose, o
     }
   };
 
+  const handleRefundConfirm = async () => {
+    if (!refundProofFile) {
+       toast.error("Wajib upload bukti transfer refund.");
+       return;
+    }
+    if (!refundNote.trim()) {
+       toast.error("Wajib isi catatan refund.");
+       return;
+    }
+
+    setProcessing(true);
+    const toastId = toast.loading("Uploading proof & processing refund...");
+
+    try {
+      // 1. Upload Proof
+      const storage = getStorage(app);
+      const storageRef = ref(storage, `refunds/${tenant.id}_${Date.now()}`);
+      await uploadBytes(storageRef, refundProofFile);
+      const downloadUrl = await getDownloadURL(storageRef);
+
+      // 2. Call Service
+      await approveRefund(tenant, downloadUrl, refundNote);
+      
+      toast.success("Refund berhasil diproses.", { id: toastId });
+      onRefresh();
+      onClose();
+    } catch (error: any) {
+      console.error(error);
+      toast.error(`Refund Failed: ${error.message}`, { id: toastId });
+    } finally {
+      setProcessing(false);
+    }
+  };
+
   const paymentProofBase64 = tenant.payment?.payment_proof_base64;
   const paymentProofUrl = tenant.payment?.proofUrl;
   const hasProof = !!paymentProofBase64 || !!paymentProofUrl;
@@ -171,7 +212,7 @@ export const ApprovalModal: React.FC<ApprovalModalProps> = ({ tenant, onClose, o
                        </div>
                        {hasProof ? (
                          <div className="relative w-full h-32 bg-black/40 rounded-lg overflow-hidden group cursor-pointer border border-gray-700">
-                            <img src={paymentProofBase64 ? `data:image/jpeg;base64,${paymentProofBase64}` : paymentProofUrl} className="w-full h-full object-cover" alt="Proof" />
+                            <img src={getDisplayImageUrl(paymentProofBase64 || paymentProofUrl)!} className="w-full h-full object-cover" alt="Proof" />
                          </div>
                        ) : (
                          <div className="w-full h-32 bg-red-500/5 border border-red-500/20 rounded-lg flex flex-col items-center justify-center text-red-400 text-xs gap-2">
@@ -197,7 +238,7 @@ export const ApprovalModal: React.FC<ApprovalModalProps> = ({ tenant, onClose, o
                  {loadingDocs && <Loader2 className="animate-spin text-blue-400 mx-auto"/>}
                  <div className="bg-cardBg/50 rounded-xl border border-glassBorder p-4 flex flex-col items-center">
                     <h3 className="text-white font-bold mb-4">SIUP Document</h3>
-                    {companyDocBase64 ? <img src={`data:image/jpeg;base64,${companyDocBase64}`} className="max-h-[300px] rounded border border-gray-700" alt="SIUP" /> : <p className="text-gray-500 text-sm">No Document</p>}
+                    {companyDocBase64 ? <img src={getDisplayImageUrl(companyDocBase64)!} className="max-h-[300px] rounded border border-gray-700" alt="SIUP" /> : <p className="text-gray-500 text-sm">No Document</p>}
                  </div>
               </div>
             )}
@@ -227,7 +268,45 @@ export const ApprovalModal: React.FC<ApprovalModalProps> = ({ tenant, onClose, o
              <div className="mb-6">
                 <h4 className="text-gray-400 text-xs font-bold uppercase mb-4">{t('details.approval_action')}</h4>
                 
-                {isRejecting ? (
+                {isRefundRequested ? (
+                   <div className="bg-orange-500/10 border border-orange-500/30 rounded-xl p-4 animate-in slide-in-from-right-4">
+                      <h3 className="text-sm font-bold text-orange-400 mb-2 flex items-center gap-2"><Receipt size={16}/> Permintaan Refund</h3>
+                      <div className="bg-black/40 p-3 rounded mb-3 text-xs text-gray-300 border border-white/5">
+                         <strong>Alasan User:</strong><br/>
+                         "{tenant.cancellation_request?.reason || '-'}"
+                      </div>
+                      
+                      <div className="space-y-3">
+                         <div>
+                            <label className="text-[10px] text-gray-500 uppercase font-bold">Upload Bukti Transfer</label>
+                            <input 
+                              type="file" 
+                              accept="image/*"
+                              onChange={(e) => e.target.files && setRefundProofFile(e.target.files[0])}
+                              className="w-full mt-1 text-xs text-gray-400 file:mr-2 file:py-1 file:px-2 file:rounded-md file:border-0 file:text-xs file:font-semibold file:bg-blue-600 file:text-white hover:file:bg-blue-500"
+                            />
+                         </div>
+                         <div>
+                            <label className="text-[10px] text-gray-500 uppercase font-bold">Catatan Admin</label>
+                            <textarea
+                              value={refundNote}
+                              onChange={(e) => setRefundNote(e.target.value)}
+                              placeholder="Cth: Dana dikembalikan via BCA..."
+                              className="w-full mt-1 bg-black/40 border border-orange-500/30 rounded p-2 text-xs text-white focus:border-orange-500 outline-none resize-none h-20"
+                            />
+                         </div>
+                         
+                         <button
+                           onClick={handleRefundConfirm}
+                           disabled={processing || !refundProofFile}
+                           className="w-full py-3 bg-orange-600 hover:bg-orange-500 text-white font-bold rounded-lg text-xs flex items-center justify-center gap-2 transition-colors disabled:opacity-50"
+                         >
+                           {processing ? <Loader2 size={14} className="animate-spin"/> : <Send size={14}/>}
+                           KONFIRMASI REFUND
+                         </button>
+                      </div>
+                   </div>
+                ) : isRejecting ? (
                   <div className="bg-red-500/5 border border-red-500/30 rounded-xl p-4 animate-in slide-in-from-right-4 duration-300">
                      <h3 className="text-sm font-bold text-red-400 mb-2 flex items-center gap-2"><XCircle size={16}/> Konfirmasi Penolakan</h3>
                      <textarea
