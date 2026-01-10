@@ -269,3 +269,132 @@ export const approveRefund = async (tenant: Tenant, refundProofUrl: string, admi
     throw new Error(error.message || "Failed to approve refund");
   }
 };
+
+/**
+ * SCENARIO D: SUSPEND TENANT (Late Payment / Violation)
+ */
+export const suspendTenant = async (tenant: Tenant, reason: string) => {
+  console.log("=== SUSPENDING TENANT ===", tenant.id);
+  
+  const batch = writeBatch(db);
+  const tenantRef = doc(db, 'tenants', tenant.id);
+
+  try {
+     const historyEntry = {
+      created_at: Timestamp.now(),
+      note: `Suspended by Admin: ${reason}`,
+      status: 'suspended',
+      type: 'account_suspended' 
+    };
+
+    const updates: any = {
+       status: 'suspended',
+       suspension_reason: reason,
+       history: arrayUnion(historyEntry),
+       updated_at: serverTimestamp()
+    };
+
+    batch.update(tenantRef, updates);
+
+    // Also deactivate the Shop if it exists
+    if (tenant.shop_id) {
+       const shopRef = doc(db, 'barbershops', tenant.shop_id);
+       batch.update(shopRef, { isActive: false });
+    }
+
+    // Notification
+    const notificationRef = doc(collection(db, 'notifications'));
+    const notificationData: Notification = {
+      user_id: tenant.owner_uid,
+      title: "Akun Ditangguhkan",
+      body: `Akun tenant Anda ditangguhkan sementara.\nAlasan: ${reason}\nHubungi admin untuk info lebih lanjut.`,
+      delivered: false,
+      created_at: serverTimestamp()
+    };
+    batch.set(notificationRef, notificationData);
+
+    await batch.commit();
+    return { success: true };
+  } catch (error: any) {
+    console.error("Suspension Error:", error);
+    throw new Error(error.message || "Failed to suspend tenant");
+  }
+};
+
+/**
+ * SCENARIO E: DELETE TENANT (Dangerous)
+ */
+export const deleteTenant = async (tenant: Tenant) => {
+  console.log("=== DELETING TENANT ===", tenant.id);
+  
+  const batch = writeBatch(db);
+  const tenantRef = doc(db, 'tenants', tenant.id);
+
+  try {
+     const historyEntry = {
+      created_at: Timestamp.now(),
+      note: `Tenant DELETED by Admin`,
+      status: 'deleted',
+      type: 'account_deleted' 
+    };
+
+    const updates: any = {
+       status: 'deleted',
+       history: arrayUnion(historyEntry),
+       updated_at: serverTimestamp()
+    };
+
+    batch.update(tenantRef, updates);
+
+    // Deactivate Shop
+    if (tenant.shop_id) {
+       const shopRef = doc(db, 'barbershops', tenant.shop_id);
+       batch.update(shopRef, { isActive: false });
+    }
+
+    await batch.commit();
+    return { success: true };
+  } catch (error: any) {
+    console.error("Delete Error:", error);
+    throw new Error(error.message || "Failed to delete tenant");
+  }
+};
+
+/**
+ * DELETE BARBERSHOP (Soft Delete)
+ */
+export const deleteBarbershop = async (shopId: string) => {
+  console.log("=== DELETING BARBERSHOP ===", shopId);
+  const shopRef = doc(db, 'barbershops', shopId);
+  
+  try {
+    await updateDoc(shopRef, {
+      isActive: false,
+      isDeleted: true,
+      updated_at: serverTimestamp()
+    });
+    return { success: true };
+  } catch (error: any) {
+    console.error("Delete Shop Error:", error);
+    throw new Error(error.message || "Failed to delete barbershop");
+  }
+};
+
+/**
+ * DELETE USER (Soft Delete)
+ */
+export const deleteUser = async (userId: string) => {
+  console.log("=== DELETING USER ===", userId);
+  const userRef = doc(db, 'users', userId);
+  
+  try {
+    await updateDoc(userRef, {
+      isDeleted: true,
+      updated_at: serverTimestamp()
+    });
+    return { success: true };
+  } catch (error: any) {
+    console.error("Delete User Error:", error);
+    throw new Error(error.message || "Failed to delete user");
+  }
+};

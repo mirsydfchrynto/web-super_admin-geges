@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@reduxjs/toolkit": "^2.11.2",
+    "@sentry/react": "^10.32.1",
     "date-fns": "^4.1.0",
     "firebase": "^12.7.0",
     "framer-motion": "^12.24.0",

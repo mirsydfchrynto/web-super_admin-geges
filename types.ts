@@ -78,6 +78,7 @@ export interface Barbershop {
   facilities: string[];
   isOpen: boolean;
   isActive: boolean;     // Found in sample data
+  isDeleted?: boolean;   // Soft delete flag
   open_hour: number;     // Matches 'open_hour'
   close_hour: number;    // Matches 'close_hour'
   weekly_holidays: number[];
@@ -96,6 +97,7 @@ export interface User {
   photo_base64?: string;     // Flutter prefers snake_case
   favorite_barbershops?: string[];
   email?: string;
+  isDeleted?: boolean;
   created_at?: any;
 }
 

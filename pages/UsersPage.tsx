@@ -1,7 +1,9 @@
 
 import React, { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Layout } from '../components/Layout';
 import { collection, getDocs, doc, updateDoc, query, where, Timestamp } from 'firebase/firestore';
+import { deleteUser } from '../services/provisioningService';
 import { auth, db } from '../lib/firebase';
 import { User } from '../types';
 import { 
@@ -18,7 +20,8 @@ import {
   Loader2,
   Phone,
   Store,
-  ExternalLink
+  ExternalLink,
+  Trash2
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
@@ -40,6 +43,7 @@ export const UsersPage: React.FC = () => {
   const [editingUser, setEditingUser] = useState<UserWithId | null>(null);
   const [newRole, setNewRole] = useState<string>('');
   const [saving, setSaving] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const navigate = useNavigate();
 
@@ -50,7 +54,10 @@ export const UsersPage: React.FC = () => {
       const querySnapshot = await getDocs(q);
       const data: UserWithId[] = [];
       querySnapshot.forEach((doc) => {
-        data.push({ id: doc.id, ...doc.data() } as UserWithId);
+        const u = doc.data() as User;
+        if (!u.isDeleted) {
+          data.push({ id: doc.id, ...u } as UserWithId);
+        }
       });
       
       // Sort by Created At (Newest First)
@@ -76,6 +83,22 @@ export const UsersPage: React.FC = () => {
   const handleEdit = (user: UserWithId) => {
     setEditingUser(user);
     setNewRole(user.role);
+  };
+
+  const handleDelete = async (user: UserWithId) => {
+     if (window.confirm(`Apakah Anda yakin ingin menghapus user '${user.name}'?`)) {
+        setDeletingId(user.id);
+        const toastId = toast.loading("Deleting user...");
+        try {
+           await deleteUser(user.id);
+           toast.success("User deleted.", { id: toastId });
+           setUsers(prev => prev.filter(u => u.id !== user.id));
+        } catch (e: any) {
+           toast.error("Failed: " + e.message, { id: toastId });
+        } finally {
+           setDeletingId(null);
+        }
+     }
   };
 
   const handleSaveRole = async () => {
@@ -273,6 +296,14 @@ export const UsersPage: React.FC = () => {
                           className="px-3 py-1.5 bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 border border-blue-500/20 rounded-lg text-xs font-medium transition-colors"
                         >
                           {t('users.btn_manage')}
+                        </button>
+                        <button 
+                           onClick={() => handleDelete(user)}
+                           disabled={deletingId === user.id}
+                           title="Delete User"
+                           className="p-2 bg-red-500/10 hover:bg-red-500/20 text-red-500 border border-red-500/20 rounded-lg transition-colors"
+                        >
+                           {deletingId === user.id ? <Loader2 size={16} className="animate-spin"/> : <Trash2 size={16}/>}
                         </button>
                       </div>
                     </td>

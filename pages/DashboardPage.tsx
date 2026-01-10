@@ -55,15 +55,17 @@ export const DashboardPage: React.FC = () => {
     const fetchStats = async () => {
       setLoading(true);
       try {
-        // 1. Barbershops Count
+        // 1. Barbershops Count (Filter isDeleted)
         const barbershopsColl = collection(db, "barbershops");
-        const activeSnapshot = await getCountFromServer(barbershopsColl);
+        const activeSnapshot = await getDocs(query(barbershopsColl, where('isDeleted', '!=', true)));
+        const activeCount = activeSnapshot.size;
         
         // 2. Pending Approvals & Recent Tenants
         const tenantsColl = collection(db, "tenants");
         const qPendingCandidates = query(
           tenantsColl, 
-          where('status', 'in', ['waiting_proof', 'payment_submitted', 'pending_payment', 'awaiting_payment'])
+          where('status', 'in', ['waiting_proof', 'payment_submitted', 'pending_payment', 'awaiting_payment']),
+          where('isDeleted', '!=', true)
         );
         const pendingSnap = await getDocs(qPendingCandidates);
         
@@ -72,6 +74,8 @@ export const DashboardPage: React.FC = () => {
 
         pendingSnap.forEach(doc => {
           const data = doc.data() as Tenant;
+          if (data.status === 'deleted') return; // Extra safety
+
           const tenantWithId = { ...data, id: doc.id };
           const hasProof = data.payment?.payment_proof_base64 || data.payment?.proofUrl;
           const verifStatus = data.payment?.verificationStatus;
@@ -89,9 +93,10 @@ export const DashboardPage: React.FC = () => {
         });
         setRecentTenants(recents.slice(0, 5));
 
-        // 3. Users Count
+        // 3. Users Count (Filter isDeleted)
         const usersColl = collection(db, "users");
-        const usersSnapshot = await getCountFromServer(usersColl);
+        const usersSnapshot = await getDocs(query(usersColl, where('isDeleted', '!=', true)));
+        const userCount = usersSnapshot.size;
 
         // 4. SaaS Revenue Calculation
         // Calculate revenue from Tenants who are 'active' (Approved & Verified)
@@ -107,6 +112,8 @@ export const DashboardPage: React.FC = () => {
 
         revenueSnap.forEach(doc => {
           const data = doc.data() as Tenant;
+          if (data.status === 'deleted') return;
+
           // Priority: Invoice Amount -> Registration Fee -> 0
           const amount = data.invoice?.amount || data.registration_fee || 0;
           
@@ -119,9 +126,9 @@ export const DashboardPage: React.FC = () => {
         }).format(calculatedRevenue);
 
         setStats({
-          activeTenants: activeSnapshot.data().count,
+          activeTenants: activeCount,
           waitingApproval: pendingCount,
-          totalUsers: usersSnapshot.data().count,
+          totalUsers: userCount,
           revenue: revenueString,
           transactions: successfulRegistrations
         });

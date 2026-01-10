@@ -39,7 +39,12 @@ export const TenantsPage: React.FC = () => {
       const snapshot = await getDocs(collectionRef);
       
       const data: BarbershopWithId[] = [];
-      snapshot.forEach((doc) => data.push({ id: doc.id, ...(doc.data() as Barbershop) } as BarbershopWithId));
+      snapshot.forEach((doc) => {
+        const d = doc.data() as Barbershop;
+        if (!d.isDeleted) { // Filter out soft-deleted
+          data.push({ id: doc.id, ...d } as BarbershopWithId);
+        }
+      });
 
       // CLIENT SIDE SORT (Robust against missing created_at)
       if (isSearchMode) {

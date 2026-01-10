@@ -1,11 +1,12 @@
 
 import React, { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { deleteBarbershop } from '../services/provisioningService';
 import { Layout } from '../components/Layout';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { Barbershop } from '../types';
-import { ArrowLeft, Save, Loader2, Store, MapPin, Clock, ImageIcon, Scissors, ShieldAlert, Upload, X } from 'lucide-react';
+import { ArrowLeft, Save, Loader2, Store, MapPin, Clock, ImageIcon, Scissors, ShieldAlert, Upload, X, Trash2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useForm } from 'react-hook-form';
 import { useTranslation } from '../hooks/useTranslation';
@@ -17,6 +18,7 @@ export const BarbershopDetailsPage: React.FC = () => {
   const { t } = useTranslation();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const { register, handleSubmit, reset, formState: { isDirty }, watch, setValue } = useForm<Barbershop>();
   const imageUrlValue = watch("imageUrl");
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -214,7 +216,31 @@ export const BarbershopDetailsPage: React.FC = () => {
 
             {/* Admin Actions - REMOVED as per request (Managed in Tenants Page) */}
 
-            <div className="pt-6 flex justify-end">
+            <div className="pt-6 flex justify-between items-center border-t border-glassBorder/50 mt-8">
+              <button 
+                type="button"
+                disabled={deleting}
+                onClick={async () => {
+                  if (!id) return;
+                  if (window.confirm("PERINGATAN: Apakah Anda yakin ingin menghapus Barbershop ini? (Data akan diarsipkan/Soft Delete)")) {
+                    setDeleting(true);
+                    const toastId = toast.loading("Deleting Barbershop...");
+                    try {
+                      await deleteBarbershop(id);
+                      toast.success("Barbershop deleted.", { id: toastId });
+                      navigate('/tenants');
+                    } catch (e: any) {
+                      toast.error("Failed: " + e.message, { id: toastId });
+                      setDeleting(false);
+                    }
+                  }
+                }}
+                className="px-6 py-4 bg-red-600/10 hover:bg-red-600 text-red-500 hover:text-white border border-red-600/30 rounded-xl font-bold flex items-center gap-2 transition-all"
+              >
+                {deleting ? <Loader2 className="animate-spin" /> : <Trash2 size={20} />}
+                {deleting ? 'Deleting...' : 'DELETE BARBERSHOP'}
+              </button>
+
               <button 
                 type="submit" 
                 disabled={saving || !isDirty}

@@ -27,6 +27,8 @@ export const RefundRequestsPage: React.FC = () => {
       const data: Tenant[] = [];
       snapshot.forEach((doc) => {
         const d = doc.data();
+        if (d.status === 'deleted') return; // Filter out soft-deleted
+
         data.push({ 
            id: doc.id, 
            ...d,

@@ -341,7 +341,7 @@ export const ApprovalModal: React.FC<ApprovalModalProps> = ({ tenant, onClose, o
                 )}
              </div>
 
-             {!isRejecting && (
+             {!isRejecting && !isRefundRequested && (
                <div className="mt-auto space-y-3">
                   <button
                     onClick={handleApprove}

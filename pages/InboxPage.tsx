@@ -31,15 +31,19 @@ export const InboxPage: React.FC = () => {
     // console.log(`Tenant: ${t.business_name}, Status: ${t.status}`);
 
     const status = t.status?.toLowerCase() || '';
+    
+    // Exclude deleted items from all views (Soft Delete)
+    if (status === 'deleted') return false;
 
     let matchesTab = true;
     if (activeTab === 'pending') {
-      matchesTab = ['waiting_proof', 'payment_submitted', 'pending_payment', 'awaiting_payment', 'pending'].includes(status);
+      // Added 'cancellation_requested' here
+      matchesTab = ['waiting_proof', 'payment_submitted', 'pending_payment', 'awaiting_payment', 'pending', 'cancellation_requested'].includes(status);
     } else if (activeTab === 'active') {
       matchesTab = status === 'active';
     } else if (activeTab === 'rejected') {
-      // Include rejected, cancelled, declined, etc.
-      matchesTab = ['rejected', 'cancelled', 'declined', 'denied'].includes(status);
+      // Added 'suspended' here
+      matchesTab = ['rejected', 'cancelled', 'declined', 'denied', 'suspended'].includes(status);
     }
     
     return matchesSearch && matchesTab;
@@ -48,12 +52,19 @@ export const InboxPage: React.FC = () => {
   const getTenantStatusDisplay = (tenant: Tenant) => {
     const hasProof = tenant.payment?.payment_proof_base64 || tenant.payment?.proofUrl;
     const verifStatus = tenant.payment?.verificationStatus;
+    const status = tenant.status?.toLowerCase();
     
-    if (tenant.status === 'active') {
+    if (status === 'active') {
        return { label: 'Active', classes: 'bg-green-500/10 text-green-500 border-green-500/20', actionable: false };
     }
-    if (tenant.status === 'rejected') {
+    if (status === 'rejected') {
        return { label: 'Rejected', classes: 'bg-red-500/10 text-red-500 border-red-500/20', actionable: false };
+    }
+    if (status === 'suspended') {
+       return { label: 'Suspended', classes: 'bg-amber-500/10 text-amber-500 border-amber-500/20', actionable: false };
+    }
+    if (status === 'cancellation_requested') {
+       return { label: 'Refund Req.', classes: 'bg-rose-500/10 text-rose-500 border-rose-500/20', actionable: true };
     }
     if (hasProof || verifStatus === 'pending') {
       return { label: t('dashboard.ready_review'), classes: 'bg-gold/20 text-gold border-gold/30', actionable: true };
@@ -115,7 +126,7 @@ export const InboxPage: React.FC = () => {
                {tab.label}
                {tab.id === 'pending' && (
                  <span className="ml-1 px-1.5 py-0.5 rounded-full bg-white/10 text-[10px]">
-                   {tenants.filter(t => ['waiting_proof', 'payment_submitted', 'pending_payment', 'awaiting_payment', 'pending'].includes(t.status?.toLowerCase())).length}
+                   {tenants.filter(t => ['waiting_proof', 'payment_submitted', 'pending_payment', 'awaiting_payment', 'pending', 'cancellation_requested'].includes(t.status?.toLowerCase())).length}
                  </span>
                )}
              </button>

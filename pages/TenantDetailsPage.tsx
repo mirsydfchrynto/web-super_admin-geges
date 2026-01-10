@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { suspendTenant, deleteTenant } from '../services/provisioningService';
 import { Layout } from '../components/Layout';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
@@ -7,7 +8,7 @@ import { Tenant, Barbershop } from '../types';
 import { 
   ArrowLeft, FileText, Calendar, Download, FileCheck, Maximize2, X,
   CheckCircle, XCircle, ShieldCheck, Store, Key, Copy, AlertCircle,
-  Clock, MapPin, Loader2, Send, Receipt
+  Clock, MapPin, Loader2, Send, Receipt, Ban, Trash2
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useTranslation } from '../hooks/useTranslation';
@@ -61,6 +62,7 @@ export const TenantDetailsPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [showApprovalModal, setShowApprovalModal] = useState(false);
   const [zoomedImage, setZoomedImage] = useState<string | null>(null);
+  const [suspending, setSuspending] = useState(false);
 
   // --- OPTIMIZED PARALLEL FETCHING ---
   const fetchAllData = useCallback(async () => {
@@ -83,47 +85,58 @@ export const TenantDetailsPage: React.FC = () => {
       const tenantData = { 
         id: tenantSnap.id, 
         ...tenantSnap.data(),
-        created_at: tenantSnap.data().created_at?.toMillis ? tenantSnap.data().created_at.toMillis() : tenantSnap.data().created_at
+        // Robust Date Handling: Check if method exists (Timestamp) or use raw value
+        created_at: tenantSnap.data()?.created_at?.toMillis 
+          ? tenantSnap.data().created_at.toMillis() 
+          : (tenantSnap.data()?.created_at || Date.now())
       } as Tenant;
 
-      // PARALLEL FETCHING: Prepare all promises
+      // PARALLEL FETCHING: Prepare all promises safely
       const promises: Promise<any>[] = [];
 
-      // 1. Created Shop (if exists)
+      // 1. Created Shop (Safe Fetch)
       if (tenantData.shop_id) {
-        promises.push(getDoc(doc(db, 'barbershops', tenantData.shop_id)));
+        promises.push(getDoc(doc(db, 'barbershops', tenantData.shop_id)).catch(() => ({ exists: () => false })));
       } else {
-        promises.push(Promise.resolve(null));
+        promises.push(Promise.resolve({ exists: () => false }));
       }
 
-      // 2. SIUP Document
+      // 2. SIUP Document (Safe Fetch)
       if (tenantData.company_doc_ref) {
-        promises.push(getDoc(doc(db, tenantData.company_doc_ref)));
+        promises.push(getDoc(doc(db, tenantData.company_doc_ref)).catch(() => ({ exists: () => false })));
       } else if (tenantData.document_base64) {
-        // Handle legacy direct base64
         promises.push(Promise.resolve({ exists: () => true, data: () => ({ content_base64: tenantData.document_base64 }) }));
       } else {
-        promises.push(Promise.resolve(null));
+        promises.push(Promise.resolve({ exists: () => false }));
       }
 
-      // 3. Tax Document
+      // 3. Tax Document (Safe Fetch)
       if (tenantData.tax_doc_ref) {
-        promises.push(getDoc(doc(db, tenantData.tax_doc_ref)));
+        promises.push(getDoc(doc(db, tenantData.tax_doc_ref)).catch(() => ({ exists: () => false })));
       } else {
-        promises.push(Promise.resolve(null));
+        promises.push(Promise.resolve({ exists: () => false }));
       }
 
-      // EXECUTE ALL
+      // EXECUTE ALL SAFELY
       const [shopSnap, siupSnap, taxSnap] = await Promise.all(promises);
 
       // PROCESS RESULTS
-      if (shopSnap && shopSnap.exists()) {
+      // Only set shop if it truly exists and data is valid
+      if (shopSnap && typeof shopSnap.exists === 'function' && shopSnap.exists()) {
          setCreatedShop(shopSnap.data() as Barbershop);
+      } else {
+         setCreatedShop(null);
       }
 
       const newDocs = { siup: null as string | null, tax: null as string | null };
-      if (siupSnap && siupSnap.exists()) newDocs.siup = siupSnap.data().content_base64;
-      if (taxSnap && taxSnap.exists()) newDocs.tax = taxSnap.data().content_base64;
+      if (siupSnap && typeof siupSnap.exists === 'function' && siupSnap.exists()) {
+        const data = siupSnap.data();
+        if (data) newDocs.siup = data.content_base64;
+      }
+      if (taxSnap && typeof taxSnap.exists === 'function' && taxSnap.exists()) {
+        const data = taxSnap.data();
+        if (data) newDocs.tax = data.content_base64;
+      }
       setDocuments(newDocs);
 
       // Creds Logic
@@ -134,12 +147,12 @@ export const TenantDetailsPage: React.FC = () => {
         });
       }
 
-      // Finally, set the main tenant data to trigger render
+      // Finally, set the main tenant data
       setTenant(tenantData);
 
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error fetching details:", error);
-      toast.error("Failed to load details");
+      toast.error(`Gagal memuat data: ${error.message || "Unknown error"}`);
     } finally {
       // Small delay to ensure smooth transition if data loads too fast
       setTimeout(() => setLoading(false), 300);
@@ -164,6 +177,8 @@ export const TenantDetailsPage: React.FC = () => {
     payment_submitted: 'bg-blue-500/20 text-blue-400 border-blue-500/30',
     rejected: 'bg-red-500/20 text-red-400 border-red-500/30',
     cancelled: 'bg-gray-500/20 text-gray-400 border-gray-500/30',
+    cancellation_requested: 'bg-rose-500/20 text-rose-400 border-rose-500/30',
+    suspended: 'bg-amber-500/20 text-amber-400 border-amber-500/30',
   };
 
   // --- MAIN RENDER ---
@@ -381,17 +396,96 @@ export const TenantDetailsPage: React.FC = () => {
                    <h3 className="text-sm font-bold text-gray-400 uppercase tracking-widest mb-6">{t('details.approval_action')}</h3>
                    
                    <div className="space-y-4">
-                      {/* Status-based actions could go here */}
-                      <button 
-                         onClick={() => setShowApprovalModal(true)}
-                         className="w-full py-4 bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-500 hover:to-blue-400 text-white font-bold rounded-xl shadow-lg shadow-blue-900/20 transition-all flex items-center justify-center gap-2 group"
-                      >
-                         <ShieldCheck size={20} className="group-hover:scale-110 transition-transform"/>
-                         {t('details.btn_manage')} / {t('details.btn_approve')}
-                      </button>
+                      {/* --- ACTIVE STATE --- */}
+                      {tenant.status === 'active' && (
+                        <div className="space-y-3 animate-in fade-in slide-in-from-bottom-2">
+                           <div className="p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-lg text-xs text-emerald-400 flex items-center gap-2 mb-4">
+                              <CheckCircle size={14}/> 
+                              <div>
+                                <span className="font-bold">Tenant Aktif & Beroperasi.</span>
+                                <div className="text-[10px] opacity-70">Shop ID: {tenant.shop_id || '-'}</div>
+                              </div>
+                           </div>
+                           {/* Active Tenant Actions could be expanded here (e.g., Edit Plan), but currently focused on Termination */}
+                        </div>
+                      )}
 
-                      <div className="text-center text-xs text-gray-500 pt-2 border-t border-white/5">
-                         Actions vary based on status.
+                      {/* --- REFUND REQUEST STATE --- */}
+                      {tenant.status === 'cancellation_requested' && (
+                        <button 
+                           onClick={() => setShowApprovalModal(true)}
+                           className="w-full py-4 bg-rose-600 hover:bg-rose-500 text-white font-bold rounded-xl shadow-lg shadow-rose-900/20 transition-all flex items-center justify-center gap-2 group animate-pulse"
+                        >
+                           <Receipt size={20} className="group-hover:rotate-12 transition-transform"/>
+                           Process Refund Request
+                        </button>
+                      )}
+
+                      {/* --- PENDING / APPROVAL STATE --- */}
+                      {['awaiting_payment', 'waiting_proof', 'payment_submitted'].includes(tenant.status) && (
+                         <button 
+                           onClick={() => setShowApprovalModal(true)}
+                           className="w-full py-4 bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-500 hover:to-blue-400 text-white font-bold rounded-xl shadow-lg shadow-blue-900/20 transition-all flex items-center justify-center gap-2 group"
+                        >
+                           <ShieldCheck size={20} className="group-hover:scale-110 transition-transform"/>
+                           {t('details.btn_manage')} / {t('details.btn_approve')}
+                        </button>
+                      )}
+
+                      {/* --- TERMINAL STATE INFO (Rejected, Suspended, Cancelled) --- */}
+                      {['rejected', 'suspended', 'cancelled'].includes(tenant.status) && (
+                        <div className={`p-4 rounded-xl border mb-2 text-center ${
+                          tenant.status === 'suspended' ? 'bg-amber-500/10 border-amber-500/30 text-amber-500' :
+                          'bg-gray-800/50 border-gray-700 text-gray-400'
+                        }`}>
+                           <div className="text-xs uppercase font-bold mb-1 flex justify-center items-center gap-2">
+                              {tenant.status === 'suspended' ? <Ban size={14}/> : <XCircle size={14}/>}
+                              Status: {tenant.status.toUpperCase()}
+                           </div>
+                           <div className="text-xs opacity-70">
+                             {tenant.status === 'suspended' 
+                                ? "Akun ini sedang ditangguhkan. Hapus jika tidak ada penyelesaian." 
+                                : "Aplikasi ini telah berakhir. Anda dapat menghapus data ini untuk kebersihan database."}
+                           </div>
+                        </div>
+                      )}
+
+                      {/* --- DANGER ZONE: DELETE ACTION (Available for Active & Terminal States) --- */}
+                      {['active', 'rejected', 'suspended', 'cancelled'].includes(tenant.status) && (
+                         <div className="pt-4 border-t border-white/5 mt-2">
+                           <button 
+                              onClick={async () => {
+                                const isCritical = tenant.status === 'active';
+                                const msg = isCritical
+                                  ? `PERINGATAN KERAS!\n\nTenant ini sedang AKTIF.\nMenghapus tenant ini akan MENUTUP Barbershop terkait secara otomatis.\n\nApakah Anda yakin ingin melanjutkan penghapusan?`
+                                  : `Apakah Anda yakin ingin menghapus data tenant ini? (Data akan diarsipkan/soft-delete)`;
+
+                                if (window.confirm(msg)) {
+                                  setSuspending(true);
+                                  const toastId = toast.loading("Deleting tenant...");
+                                  try {
+                                    await deleteTenant(tenant);
+                                    toast.success("Tenant Deleted (Archived)", { id: toastId });
+                                    navigate('/tenants');
+                                  } catch (e: any) {
+                                    toast.error("Failed: " + e.message, { id: toastId });
+                                    setSuspending(false);
+                                  }
+                                }
+                              }}
+                              disabled={suspending}
+                              className="w-full py-3 bg-transparent hover:bg-red-900/20 text-red-500 hover:text-red-400 border border-red-900/50 hover:border-red-500 rounded-xl transition-all flex items-center justify-center gap-2 group font-bold text-xs tracking-wider"
+                           >
+                              {suspending ? <Loader2 className="animate-spin" size={16} /> : <Trash2 size={16} />}
+                              {tenant.status === 'active' ? 'TERMINATE & DELETE' : 'DELETE DATA'}
+                           </button>
+                         </div>
+                      )}
+
+                      <div className="text-center text-[10px] text-gray-600 pt-2 italic">
+                         {tenant.status === 'active' 
+                           ? "Deleting will immediately close the shop and revoke access." 
+                           : "Deleting performs a soft-delete for audit trail."}
                       </div>
                    </div>
                 </div>
