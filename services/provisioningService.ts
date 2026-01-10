@@ -1,6 +1,6 @@
 import firebase from 'firebase/compat/app';
 import 'firebase/compat/auth';
-import { doc, writeBatch, serverTimestamp, collection, arrayUnion, Timestamp } from 'firebase/firestore';
+import { doc, writeBatch, serverTimestamp, collection, arrayUnion, Timestamp, updateDoc, deleteDoc, getDoc, query, where, getDocs } from 'firebase/firestore';
 import { firebaseConfig, db } from '../lib/firebase';
 import { Tenant, Barbershop, User, Notification } from '../types';
 import { DEFAULT_BARBERSHOP_IMAGE, DEFAULT_SERVICES, DEFAULT_FACILITIES, DEFAULT_OPEN_HOUR, DEFAULT_CLOSE_HOUR } from '../lib/constants';
@@ -322,34 +322,25 @@ export const suspendTenant = async (tenant: Tenant, reason: string) => {
 };
 
 /**
- * SCENARIO E: DELETE TENANT (Dangerous)
+ * SCENARIO E: DELETE TENANT (Permanent)
  */
 export const deleteTenant = async (tenant: Tenant) => {
-  console.log("=== DELETING TENANT ===", tenant.id);
+  console.log("=== DELETING TENANT PERMANENTLY ===", tenant.id);
   
   const batch = writeBatch(db);
   const tenantRef = doc(db, 'tenants', tenant.id);
 
   try {
-     const historyEntry = {
-      created_at: Timestamp.now(),
-      note: `Tenant DELETED by Admin`,
-      status: 'deleted',
-      type: 'account_deleted' 
-    };
+    batch.delete(tenantRef);
 
-    const updates: any = {
-       status: 'deleted',
-       history: arrayUnion(historyEntry),
-       updated_at: serverTimestamp()
-    };
-
-    batch.update(tenantRef, updates);
-
-    // Deactivate Shop
+    // Deactivate Shop if exists (or delete it too? User asked to delete tenant/barbershop data permanently)
+    // To be safe and clean, we should probably delete the shop too if we are hard deleting.
+    // But let's stick to the previous logic of deactivating shop to avoid stranding bookings, OR delete it.
+    // User said "hapus data tenant/ barbershop", implying cleanup.
+    // Let's delete the shop document as well if it exists.
     if (tenant.shop_id) {
        const shopRef = doc(db, 'barbershops', tenant.shop_id);
-       batch.update(shopRef, { isActive: false });
+       batch.delete(shopRef);
     }
 
     await batch.commit();
@@ -361,18 +352,40 @@ export const deleteTenant = async (tenant: Tenant) => {
 };
 
 /**
- * DELETE BARBERSHOP (Soft Delete)
+ * DELETE BARBERSHOP (Permanent & Cascading)
  */
 export const deleteBarbershop = async (shopId: string) => {
-  console.log("=== DELETING BARBERSHOP ===", shopId);
+  console.log("=== DELETING BARBERSHOP & RELATED DATA PERMANENTLY ===", shopId);
+  const batch = writeBatch(db);
   const shopRef = doc(db, 'barbershops', shopId);
   
   try {
-    await updateDoc(shopRef, {
-      isActive: false,
-      isDeleted: true,
-      updated_at: serverTimestamp()
+    // 1. Get Shop Data to find Admin UID
+    const shopSnap = await getDoc(shopRef);
+    if (!shopSnap.exists()) {
+       throw new Error("Barbershop not found");
+    }
+    const shopData = shopSnap.data() as Barbershop;
+    
+    // 2. Delete Barbershop Doc
+    batch.delete(shopRef);
+
+    // 3. Find and Delete Tenant Application (where shop_id == shopId)
+    const tenantQ = query(collection(db, 'tenants'), where('shop_id', '==', shopId));
+    const tenantSnap = await getDocs(tenantQ);
+    tenantSnap.forEach((tDoc) => {
+       console.log(`> Queuing Tenant deletion: ${tDoc.id}`);
+       batch.delete(tDoc.ref);
     });
+
+    // 4. Find and Delete Owner User (admin_uid)
+    if (shopData.admin_uid) {
+       console.log(`> Queuing User deletion: ${shopData.admin_uid}`);
+       const userRef = doc(db, 'users', shopData.admin_uid);
+       batch.delete(userRef);
+    }
+
+    await batch.commit();
     return { success: true };
   } catch (error: any) {
     console.error("Delete Shop Error:", error);
@@ -381,17 +394,14 @@ export const deleteBarbershop = async (shopId: string) => {
 };
 
 /**
- * DELETE USER (Soft Delete)
+ * DELETE USER (Permanent)
  */
 export const deleteUser = async (userId: string) => {
-  console.log("=== DELETING USER ===", userId);
+  console.log("=== DELETING USER PERMANENTLY ===", userId);
   const userRef = doc(db, 'users', userId);
   
   try {
-    await updateDoc(userRef, {
-      isDeleted: true,
-      updated_at: serverTimestamp()
-    });
+    await deleteDoc(userRef);
     return { success: true };
   } catch (error: any) {
     console.error("Delete User Error:", error);

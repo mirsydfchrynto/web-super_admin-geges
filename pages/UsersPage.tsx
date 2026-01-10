@@ -24,7 +24,6 @@ import {
   Trash2
 } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { useNavigate } from 'react-router-dom';
 import { useTranslation } from '../hooks/useTranslation';
 import { getDisplayImageUrl } from '../lib/utils';
 
@@ -86,12 +85,12 @@ export const UsersPage: React.FC = () => {
   };
 
   const handleDelete = async (user: UserWithId) => {
-     if (window.confirm(`Apakah Anda yakin ingin menghapus user '${user.name}'?`)) {
+     if (window.confirm(`PERINGATAN: Apakah Anda yakin ingin MENGHAPUS PERMANEN user '${user.name}'? Data tidak bisa dikembalikan.`)) {
         setDeletingId(user.id);
-        const toastId = toast.loading("Deleting user...");
+        const toastId = toast.loading("Deleting user permanently...");
         try {
            await deleteUser(user.id);
-           toast.success("User deleted.", { id: toastId });
+           toast.success("User permanently deleted.", { id: toastId });
            setUsers(prev => prev.filter(u => u.id !== user.id));
         } catch (e: any) {
            toast.error("Failed: " + e.message, { id: toastId });

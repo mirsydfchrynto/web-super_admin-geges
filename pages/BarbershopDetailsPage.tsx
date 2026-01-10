@@ -222,12 +222,12 @@ export const BarbershopDetailsPage: React.FC = () => {
                 disabled={deleting}
                 onClick={async () => {
                   if (!id) return;
-                  if (window.confirm("PERINGATAN: Apakah Anda yakin ingin menghapus Barbershop ini? (Data akan diarsipkan/Soft Delete)")) {
+                  if (window.confirm("PERINGATAN: Apakah Anda yakin ingin MENGHAPUS PERMANEN Barbershop ini? Data tidak dapat dikembalikan.")) {
                     setDeleting(true);
-                    const toastId = toast.loading("Deleting Barbershop...");
+                    const toastId = toast.loading("Deleting Barbershop Permanently...");
                     try {
                       await deleteBarbershop(id);
-                      toast.success("Barbershop deleted.", { id: toastId });
+                      toast.success("Barbershop permanently deleted.", { id: toastId });
                       navigate('/tenants');
                     } catch (e: any) {
                       toast.error("Failed: " + e.message, { id: toastId });
@@ -238,7 +238,7 @@ export const BarbershopDetailsPage: React.FC = () => {
                 className="px-6 py-4 bg-red-600/10 hover:bg-red-600 text-red-500 hover:text-white border border-red-600/30 rounded-xl font-bold flex items-center gap-2 transition-all"
               >
                 {deleting ? <Loader2 className="animate-spin" /> : <Trash2 size={20} />}
-                {deleting ? 'Deleting...' : 'DELETE BARBERSHOP'}
+                {deleting ? 'Deleting...' : 'DELETE PERMANENTLY'}
               </button>
 
               <button 

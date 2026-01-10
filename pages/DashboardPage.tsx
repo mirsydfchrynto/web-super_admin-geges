@@ -7,6 +7,52 @@ import { useNavigate } from 'react-router-dom';
 import { Tenant } from '../types';
 import { useTranslation } from '../hooks/useTranslation';
 
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
+
+const ReviewAnalytics: React.FC = () => {
+  // Mock data for now (Replace with real aggregation from reviews collection later)
+  const data = [
+    { name: 'Positif (4-5★)', count: 85, color: '#4CAF50' }, // Green
+    { name: 'Netral (3★)', count: 12, color: '#FFC107' },   // Amber
+    { name: 'Negatif (1-2★)', count: 5, color: '#F44336' }, // Red
+  ];
+
+  return (
+    <div className="bg-cardBg border border-glassBorder rounded-2xl p-6 relative overflow-hidden h-full flex flex-col">
+      <div className="flex justify-between items-center mb-6">
+         <h3 className="text-white font-bold flex items-center gap-2">
+            <Activity className="text-gold" size={20}/> Analisis Ulasan
+         </h3>
+         <div className="bg-white/5 px-3 py-1 rounded-full text-[10px] text-gray-400">30 Hari Terakhir</div>
+      </div>
+      
+      <div className="flex-1 w-full min-h-[200px]">
+        <ResponsiveContainer width="100%" height="100%">
+          <BarChart data={data} layout="vertical" margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
+            <XAxis type="number" hide />
+            <YAxis dataKey="name" type="category" width={100} tick={{ fill: '#9CA3AF', fontSize: 10 }} axisLine={false} tickLine={false} />
+            <Tooltip 
+              cursor={{ fill: 'transparent' }}
+              contentStyle={{ backgroundColor: '#1E1E1E', borderColor: '#333', borderRadius: '8px', color: '#fff' }}
+              itemStyle={{ color: '#fff' }}
+            />
+            <Bar dataKey="count" radius={[0, 4, 4, 0]} barSize={20}>
+              {data.map((entry, index) => (
+                <Cell key={`cell-${index}`} fill={entry.color} />
+              ))}
+            </Bar>
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+      
+      <div className="mt-4 pt-4 border-t border-glassBorder flex justify-between text-xs text-textSecondary">
+         <span>Total Ulasan: 102</span>
+         <span className="text-green-400 font-bold">83% Kepuasan</span>
+      </div>
+    </div>
+  );
+};
+
 const StatCard: React.FC<{ 
   title: string; 
   value: string | number; 
@@ -55,17 +101,47 @@ export const DashboardPage: React.FC = () => {
     const fetchStats = async () => {
       setLoading(true);
       try {
-        // 1. Barbershops Count (Filter isDeleted)
-        const barbershopsColl = collection(db, "barbershops");
-        const activeSnapshot = await getDocs(query(barbershopsColl, where('isDeleted', '!=', true)));
-        const activeCount = activeSnapshot.size;
-        
-        // 2. Pending Approvals & Recent Tenants
         const tenantsColl = collection(db, "tenants");
+        const usersColl = collection(db, "users");
+        const barbershopsColl = collection(db, "barbershops");
+
+        // --- 1. TOTAL USERS (Client-Side Filter for Accuracy) ---
+        // Fetching all users to handle legacy docs missing 'isDeleted' field
+        const usersSnap = await getDocs(usersColl);
+        const userCount = usersSnap.docs.filter(doc => {
+           const d = doc.data();
+           return d.isDeleted !== true; // Include if false OR undefined
+        }).length;
+
+        // --- 2. ACTIVE BARBERSHOPS & ACTIVE TENANTS (Revenue) ---
+        // Fetch active tenants (Approved & Verified)
+        const qActive = query(tenantsColl, where('status', '==', 'active'));
+        const revenueSnap = await getDocs(qActive);
+        
+        let activeTenantsCount = 0;
+        let calculatedRevenue = 0;
+        let successfulRegistrations = 0;
+
+        revenueSnap.forEach(doc => {
+          const data = doc.data() as Tenant;
+          // Filter soft-deleted manually
+          if (data.status === 'deleted') return; 
+          // Note: tenants might not have isDeleted flag if created before feature, 
+          // checking 'status' === 'deleted' is safer for tenants as we updated that flow.
+          
+          activeTenantsCount++;
+          
+          // Priority: Invoice Amount -> Registration Fee -> 0
+          const amount = data.invoice?.amount || data.registration_fee || 0;
+          calculatedRevenue += amount;
+          successfulRegistrations++;
+        });
+
+        // --- 3. PENDING APPROVALS & RECENT ACTIVITY ---
+        // Statuses requiring admin attention
         const qPendingCandidates = query(
           tenantsColl, 
-          where('status', 'in', ['waiting_proof', 'payment_submitted', 'pending_payment', 'awaiting_payment']),
-          where('isDeleted', '!=', true)
+          where('status', 'in', ['waiting_proof', 'payment_submitted', 'pending_payment', 'awaiting_payment', 'cancellation_requested'])
         );
         const pendingSnap = await getDocs(qPendingCandidates);
         
@@ -74,18 +150,14 @@ export const DashboardPage: React.FC = () => {
 
         pendingSnap.forEach(doc => {
           const data = doc.data() as Tenant;
-          if (data.status === 'deleted') return; // Extra safety
+          if (data.status === 'deleted') return; // Safety check
 
           const tenantWithId = { ...data, id: doc.id };
-          const hasProof = data.payment?.payment_proof_base64 || data.payment?.proofUrl;
-          const verifStatus = data.payment?.verificationStatus;
-          
-          if (hasProof || verifStatus === 'pending' || data.status === 'waiting_proof' || data.status === 'payment_submitted') {
-            pendingCount++;
-          }
+          pendingCount++;
           recents.push(tenantWithId);
         });
 
+        // Sort by most recent
         recents.sort((a, b) => {
            const timeA = a.created_at?.seconds ? a.created_at.seconds : (a.created_at || 0);
            const timeB = b.created_at?.seconds ? b.created_at.seconds : (b.created_at || 0);
@@ -93,40 +165,13 @@ export const DashboardPage: React.FC = () => {
         });
         setRecentTenants(recents.slice(0, 5));
 
-        // 3. Users Count (Filter isDeleted)
-        const usersColl = collection(db, "users");
-        const usersSnapshot = await getDocs(query(usersColl, where('isDeleted', '!=', true)));
-        const userCount = usersSnapshot.size;
-
-        // 4. SaaS Revenue Calculation
-        // Calculate revenue from Tenants who are 'active' (Approved & Verified)
-        // This sums up the registration_fee or invoice.amount
-        const qRevenue = query(
-          tenantsColl,
-          where('status', '==', 'active')
-        );
-        const revenueSnap = await getDocs(qRevenue);
-        
-        let calculatedRevenue = 0;
-        let successfulRegistrations = 0;
-
-        revenueSnap.forEach(doc => {
-          const data = doc.data() as Tenant;
-          if (data.status === 'deleted') return;
-
-          // Priority: Invoice Amount -> Registration Fee -> 0
-          const amount = data.invoice?.amount || data.registration_fee || 0;
-          
-          calculatedRevenue += amount;
-          successfulRegistrations++;
-        });
-
+        // Format Revenue
         const revenueString = new Intl.NumberFormat('id-ID', {
           style: 'currency', currency: 'IDR', minimumFractionDigits: 0, maximumFractionDigits: 0
         }).format(calculatedRevenue);
 
         setStats({
-          activeTenants: activeCount,
+          activeTenants: activeTenantsCount,
           waitingApproval: pendingCount,
           totalUsers: userCount,
           revenue: revenueString,
@@ -215,6 +260,8 @@ export const DashboardPage: React.FC = () => {
               <div className="divide-y divide-glassBorder">
                 {recentTenants.map((tenant) => {
                    const hasProof = tenant.payment?.payment_proof_base64 || tenant.payment?.proofUrl;
+                   const isRefundReq = tenant.status === 'cancellation_requested';
+                   
                    return (
                     <div key={tenant.id} className="p-5 hover:bg-white/5 transition-colors flex items-center justify-between group">
                       <div className="flex items-center gap-4">
@@ -231,15 +278,17 @@ export const DashboardPage: React.FC = () => {
                       <div className="flex items-center gap-4">
                         <div className="text-right">
                           <span className={`inline-block px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${
-                            hasProof 
-                            ? 'bg-gold/10 text-gold border border-gold/20' 
-                            : 'bg-danger/10 text-danger border border-danger/20'
+                            isRefundReq
+                            ? 'bg-rose-500/10 text-rose-500 border border-rose-500/20'
+                            : hasProof 
+                              ? 'bg-gold/10 text-gold border border-gold/20' 
+                              : 'bg-danger/10 text-danger border border-danger/20'
                           }`}>
-                            {hasProof ? t('dashboard.ready_review') : t('dashboard.wait_payment')}
+                            {isRefundReq ? 'Refund Req' : (hasProof ? t('dashboard.ready_review') : t('dashboard.wait_payment'))}
                           </span>
                         </div>
                         <button 
-                          onClick={() => navigate('/inbox')}
+                          onClick={() => navigate(isRefundReq ? `/tenants/${tenant.id}` : '/inbox')}
                           aria-label="View Details"
                           className="p-2 text-textSecondary hover:text-white bg-transparent hover:bg-white/10 rounded-lg transition-all"
                         >
@@ -255,21 +304,7 @@ export const DashboardPage: React.FC = () => {
         </div>
 
         <div className="space-y-6">
-           <div className="bg-cardBg border border-gold/30 rounded-2xl p-6 relative overflow-hidden">
-              <div className="absolute -right-4 -top-4 text-gold opacity-10">
-                 <Store size={100} />
-              </div>
-              <h3 className="text-white font-bold mb-2 relative z-10">{t('dashboard.guidelines')}</h3>
-              <p className="text-sm text-textSecondary mb-6 relative z-10">
-                {t('dashboard.guide_desc')}
-              </p>
-              <button 
-                onClick={() => navigate('/inbox')}
-                className="w-full py-3 bg-gold hover:bg-goldHover text-black rounded-xl text-sm font-bold transition-colors shadow-lg shadow-gold/10 relative z-10"
-              >
-                {t('dashboard.go_inbox')}
-              </button>
-           </div>
+           <ReviewAnalytics />
         </div>
       </div>
     </Layout>

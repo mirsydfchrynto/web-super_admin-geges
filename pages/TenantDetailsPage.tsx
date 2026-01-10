@@ -457,15 +457,15 @@ export const TenantDetailsPage: React.FC = () => {
                               onClick={async () => {
                                 const isCritical = tenant.status === 'active';
                                 const msg = isCritical
-                                  ? `PERINGATAN KERAS!\n\nTenant ini sedang AKTIF.\nMenghapus tenant ini akan MENUTUP Barbershop terkait secara otomatis.\n\nApakah Anda yakin ingin melanjutkan penghapusan?`
-                                  : `Apakah Anda yakin ingin menghapus data tenant ini? (Data akan diarsipkan/soft-delete)`;
+                                  ? `PERINGATAN KERAS!\n\nTenant ini sedang AKTIF.\nMenghapus tenant ini akan MENGHAPUS PERMANEN Barbershop terkait secara otomatis.\n\nData tidak dapat dikembalikan. Lanjutkan?`
+                                  : `Apakah Anda yakin ingin MENGHAPUS PERMANEN data tenant ini? Data tidak dapat dikembalikan.`;
 
                                 if (window.confirm(msg)) {
                                   setSuspending(true);
-                                  const toastId = toast.loading("Deleting tenant...");
+                                  const toastId = toast.loading("Deleting tenant permanently...");
                                   try {
                                     await deleteTenant(tenant);
-                                    toast.success("Tenant Deleted (Archived)", { id: toastId });
+                                    toast.success("Tenant Permanently Deleted", { id: toastId });
                                     navigate('/tenants');
                                   } catch (e: any) {
                                     toast.error("Failed: " + e.message, { id: toastId });
@@ -477,15 +477,15 @@ export const TenantDetailsPage: React.FC = () => {
                               className="w-full py-3 bg-transparent hover:bg-red-900/20 text-red-500 hover:text-red-400 border border-red-900/50 hover:border-red-500 rounded-xl transition-all flex items-center justify-center gap-2 group font-bold text-xs tracking-wider"
                            >
                               {suspending ? <Loader2 className="animate-spin" size={16} /> : <Trash2 size={16} />}
-                              {tenant.status === 'active' ? 'TERMINATE & DELETE' : 'DELETE DATA'}
+                              {tenant.status === 'active' ? 'TERMINATE & PERMANENT DELETE' : 'PERMANENT DELETE'}
                            </button>
                          </div>
                       )}
 
                       <div className="text-center text-[10px] text-gray-600 pt-2 italic">
                          {tenant.status === 'active' 
-                           ? "Deleting will immediately close the shop and revoke access." 
-                           : "Deleting performs a soft-delete for audit trail."}
+                           ? "Deleting will immediately close the shop and remove all data permanently." 
+                           : "Deleting removes data permanently from database."}
                       </div>
                    </div>
                 </div>
