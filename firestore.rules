@@ -2,20 +2,16 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // --- 1. CORE SECURITY FUNCTIONS (FUNGSI INTI) ---
+    // --- 1. CORE FUNCTIONS ---
     
-    // Cek apakah user sudah login
     function isAuthenticated() {
       return request.auth != null;
     }
 
-    // Fail-safe: Cek Email Hardcoded (Kunci Darurat)
     function isRootAdmin() {
-      return isAuthenticated() && request.auth.token.email == 'admin@geges.com';
+      return isAuthenticated() && request.auth.token.email == 'admin@geges.com'; // Hardcoded Emergency Key
     }
 
-    // Role-Based Access Control (RBAC) via Firestore
-    // Mengizinkan akses jika user adalah Root Admin ATAU memiliki role 'super_admin' di database
     function isSuperAdmin() {
       return isRootAdmin() || (
         isAuthenticated() && 
@@ -24,70 +20,80 @@ service cloud.firestore {
       );
     }
 
-    // --- 2. AKSES TOTAL SUPER ADMIN (GOD MODE) ---
-    // Ini adalah aturan terpenting. Jika Anda Super Admin, Anda bisa melakukan APAPUN.
-    // Menimpa semua pembatasan di bawah ini.
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    // --- 2. GOD MODE (SUPER ADMIN) ---
     match /{document=**} {
       allow read, write: if isSuperAdmin();
     }
 
-    // --- 3. ATURAN UNTUK MOBILE APP & PUBLIK ---
-    // Aturan di bawah ini berlaku jika Anda BUKAN Super Admin.
-
-    // A. Katalog Barbershop (Publik)
-    // Read: Semua orang bisa melihat daftar barbershop & layanan.
-    // Write: DILARANG (Hanya Admin yang bisa ubah via Dashboard).
-    match /barbershops/{shopId} {
+    // --- 3. PUBLIC CATALOG (READ-ONLY) ---
+    match /barbershops/{document=**} {
       allow read: if true;
-      
-      // Sub-koleksi (jika ada struktur nested)
-      match /services/{serviceId} { allow read: if true; }
-      match /barbermen/{barberId} { allow read: if true; }
-      match /reviews/{reviewId} { allow read: if true; }
+      allow write: if false; // Strict
+    }
+    match /services/{document=**} {
+      allow read: if true;
+      allow write: if false; 
+    }
+    match /barbermen/{document=**} {
+      allow read: if true;
+      allow write: if false;
+    }
+    match /promo_banners/{document=**} {
+      allow read: if true;
+      allow write: if false;
+    }
+    match /app_ratings/{document=**} {
+      allow read: if true;
+      allow create: if isAuthenticated(); // User boleh review
+      allow update, delete: if false; // Review kekal
     }
 
-    // B. Koleksi Root Level (Support untuk struktur lama/hybrid)
-    match /services/{docId} { allow read: if true; }
-    match /barbermen/{docId} { allow read: if true; }
-
-    // C. Data User (Sangat Privat)
-    // User hanya boleh membaca & mengedit profil MEREKA SENDIRI.
+    // --- 4. USER DATA (PRIVATE) ---
     match /users/{userId} {
-      allow read, write: if isAuthenticated() && request.auth.uid == userId;
+      allow read: if isOwner(userId);
+      // Cegah User biasa menaikkan pangkatnya sendiri jadi 'super_admin'
+      allow write: if isOwner(userId) && 
+        (!request.resource.data.keys().hasAny(['role']) || request.resource.data.role == resource.data.role);
     }
 
-    // D. Antrean / Booking (Queues)
+    // --- 5. TRANSACTIONAL DATA ---
+    
+    // Antrean / Booking
     match /queues/{queueId} {
-      // Create: User login boleh buat booking
+      allow read: if isAuthenticated(); // Perlu baca antrean publik untuk cek slot penuh
       allow create: if isAuthenticated();
-      // Read/Update: Hanya pemilik booking yang boleh lihat/edit
-      allow read, update: if isAuthenticated() && resource.data.user_id == request.auth.uid;
+      // Update: User hanya boleh ubah antrean sendiri (misal: status -> cancellation_requested)
+      // Menggunakan field 'customer_id' sesuai kode aplikasi
+      allow update: if isAuthenticated() && (
+        resource.data.customer_id == request.auth.uid || 
+        request.resource.data.customer_id == request.auth.uid
+      );
+      // Delete: DILARANG (Gunakan Soft Delete / Cancelled status)
+      allow delete: if false; 
     }
 
-    // E. Pendaftaran Tenant (Sensitive)
+    // Pendaftaran Tenant
     match /tenants/{tenantId} {
-      // Create: Siapapun boleh mendaftar
-      allow create: if isAuthenticated(); 
-      // Read: Hanya pendaftar yang boleh melihat status lamarannya
-      allow read: if isAuthenticated() && resource.data.owner_uid == request.auth.uid;
-      // Update/Delete: HANYA ADMIN (sudah di-cover di God Mode atas)
+      allow create: if isAuthenticated();
+      // Read/Update: Hanya pemilik pendaftaran (owner_uid)
+      allow read, update: if isAuthenticated() && resource.data.owner_uid == request.auth.uid;
     }
 
-    // F. Notifikasi
-    // User hanya boleh baca notifikasi milik sendiri
+    // Notifikasi
     match /notifications/{notifId} {
       allow read: if isAuthenticated() && resource.data.user_id == request.auth.uid;
+      // Write: Biasanya via Backend/Cloud Functions, tapi Client-side trigger diizinkan sementara
+      allow write: if isAuthenticated();
     }
     
-    // G. Rating & Review
-    match /app_ratings/{ratingId} {
-      allow read: if true;
+    // Login Audit
+    match /login_audit/{auditId} {
       allow create: if isAuthenticated();
-    }
-
-    // H. Promo Banner
-    match /promo_banners/{docId} {
-      allow read: if true;
+      allow read, update, delete: if false;
     }
   }
 }

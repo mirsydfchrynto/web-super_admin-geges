@@ -46,16 +46,15 @@ export const ReviewsPage: React.FC = () => {
     ? (reviews.reduce((acc, curr) => acc + curr.rating, 0) / totalReviews).toFixed(1) 
     : '0';
   
-  const positiveCount = reviews.filter(r => (r.rating >= 4)).length; // Simplified logic if sentiment field is missing
-  const negativeCount = reviews.filter(r => (r.rating <= 2)).length;
+  const positiveCount = reviews.filter(r => (r.rating >= 4)).length; 
+  const negativeCount = reviews.filter(r => (r.rating <= 3)).length;
   
   const positivePercentage = totalReviews > 0 ? ((positiveCount / totalReviews) * 100).toFixed(1) : '0';
 
   // --- Chart Data Preparation ---
   const sentimentData = [
-    { name: 'Positif (4-5★)', value: positiveCount, color: COLORS.positive },
-    { name: 'Negatif (1-2★)', value: negativeCount, color: COLORS.negative },
-    { name: 'Netral (3★)', value: totalReviews - positiveCount - negativeCount, color: COLORS.neutral },
+    { name: 'Positif', value: positiveCount, color: COLORS.positive },
+    { name: 'Negatif', value: negativeCount, color: COLORS.negative },
   ];
 
   const starDistribution = [1, 2, 3, 4, 5].map(star => ({

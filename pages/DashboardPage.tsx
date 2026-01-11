@@ -12,7 +12,6 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 
 const ReviewAnalytics: React.FC = () => {
   const [data, setData] = useState([
     { name: 'Positif (4-5★)', count: 0, color: '#4CAF50' },
-    { name: 'Netral (3★)', count: 0, color: '#FFC107' },
     { name: 'Negatif (1-2★)', count: 0, color: '#F44336' },
   ]);
   const [summary, setSummary] = useState({ total: 0, satisfaction: 0 });
@@ -25,15 +24,12 @@ const ReviewAnalytics: React.FC = () => {
         const snapshot = await getDocs(reviewsColl);
         
         let positive = 0;
-        let neutral = 0;
         let negative = 0;
-        let totalScore = 0;
 
         snapshot.forEach(doc => {
           const rating = doc.data().rating || 0;
-          totalScore += rating;
+          // Strict binary classification: 4-5 is positive, 1-3 is negative (assuming neutral is removed)
           if (rating >= 4) positive++;
-          else if (rating === 3) neutral++;
           else negative++;
         });
 
@@ -41,9 +37,8 @@ const ReviewAnalytics: React.FC = () => {
         const satisfaction = total > 0 ? Math.round((positive / total) * 100) : 0;
 
         setData([
-          { name: 'Positif (4-5★)', count: positive, color: '#4CAF50' },
-          { name: 'Netral (3★)', count: neutral, color: '#FFC107' },
-          { name: 'Negatif (1-2★)', count: negative, color: '#F44336' },
+          { name: 'Positif', count: positive, color: '#4CAF50' },
+          { name: 'Negatif', count: negative, color: '#F44336' },
         ]);
         setSummary({ total, satisfaction });
       } catch (e) {
@@ -156,13 +151,18 @@ export const DashboardPage: React.FC = () => {  const navigate = useNavigate();
         const usersColl = collection(db, "users");
         const barbershopsColl = collection(db, "barbershops");
 
-        // --- 1. TOTAL USERS (Client-Side Filter for Accuracy) ---
-        // Fetching all users to handle legacy docs missing 'isDeleted' field
-        const usersSnap = await getDocs(usersColl);
-        const userCount = usersSnap.docs.filter(doc => {
-           const d = doc.data();
-           return d.isDeleted !== true; // Include if false OR undefined
-        }).length;
+        // --- 1. TOTAL USERS (Optimized Server-Side Count) ---
+        // Uses getCountFromServer which is fast and cheap (meta-only)
+        // Checks for 'isDeleted' NOT equal to true (handling missing fields correctly needs an index or explicit query)
+        // Since Firestore != operator excludes missing fields, we will count ALL and subtract DELETED.
+        
+        const totalUsersSnapshot = await getCountFromServer(usersColl);
+        const totalCount = totalUsersSnapshot.data().count;
+
+        const deletedUsersSnapshot = await getCountFromServer(query(usersColl, where('isDeleted', '==', true)));
+        const deletedCount = deletedUsersSnapshot.data().count;
+        
+        const userCount = totalCount - deletedCount;
 
         // --- 2. ACTIVE BARBERSHOPS & ACTIVE TENANTS (Revenue) ---
         // Fetch active tenants (Approved & Verified)
