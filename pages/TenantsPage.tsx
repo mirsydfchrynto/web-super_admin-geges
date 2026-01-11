@@ -2,6 +2,7 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { Layout } from '../components/Layout';
 import { collection, getDocs, doc, updateDoc, query, limit, orderBy, startAfter, where, QueryDocumentSnapshot, DocumentData, startAt, endAt } from 'firebase/firestore';
 import { db } from '../lib/firebase';
+import { toggleBarbershopStatus } from '../services/provisioningService';
 import { Barbershop } from '../types';
 import { Search, MapPin, Store, RefreshCcw, Info, Loader2, ArrowDown } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -117,13 +118,19 @@ export const TenantsPage: React.FC = () => {
     setTogglingId(id);
     const newActiveState = !currentActiveState;
     try {
-      const updates: any = { isActive: newActiveState };
-      if (newActiveState === false) updates.isOpen = false;
-      await updateDoc(doc(db, 'barbershops', id), updates);
-      setTenants(prev => prev.map(t => t.id === id ? { ...t, ...updates } : t));
+      // Use Service for Cascading Suspend (Shop -> User -> Tenant)
+      await toggleBarbershopStatus(id, newActiveState);
+      
+      setTenants(prev => prev.map(t => t.id === id ? { 
+        ...t, 
+        isActive: newActiveState,
+        isOpen: newActiveState ? t.isOpen : false // Sync local state
+      } : t));
+      
       toast.success(newActiveState ? `${name} ${t('tenants.status_active')}` : `${name} ${t('tenants.status_suspended')}`);
-    } catch (error) {
-      toast.error(t('common.error'));
+    } catch (error: any) {
+      console.error(error);
+      toast.error(error.message || t('common.error'));
     } finally {
       setTogglingId(null);
     }
