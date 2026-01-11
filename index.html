@@ -68,6 +68,48 @@
           -webkit-text-fill-color: white !important;
           transition: background-color 5000s ease-in-out 0s;
       }
+
+      /* LIQUID GOLD ANIMATIONS */
+      @keyframes liquid-drift {
+        0% { transform: translate(0px, 0px) scale(1); }
+        33% { transform: translate(30px, -50px) scale(1.1); }
+        66% { transform: translate(-20px, 20px) scale(0.9); }
+        100% { transform: translate(0px, 0px) scale(1); }
+      }
+      
+      @keyframes glass-sheen {
+        0% { left: -100%; opacity: 0; }
+        50% { opacity: 0.1; }
+        100% { left: 200%; opacity: 0; }
+      }
+
+      .animate-drift-slow { animation: liquid-drift 10s infinite ease-in-out; }
+      .animate-drift-medium { animation: liquid-drift 7s infinite ease-in-out reverse; }
+      .animate-drift-fast { animation: liquid-drift 5s infinite ease-in-out; }
+
+      .glass-shine-hover {
+        position: relative;
+        overflow: hidden;
+      }
+      .glass-shine-hover::after {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: -100%;
+        width: 50%;
+        height: 100%;
+        background: linear-gradient(
+          to right,
+          transparent,
+          rgba(195, 164, 123, 0.2), /* Gold tint */
+          transparent
+        );
+        transform: skewX(-25deg);
+        transition: 0.5s;
+      }
+      .glass-shine-hover:hover::after {
+        animation: glass-sheen 1s;
+      }
     </style>
   </head>
   <body>

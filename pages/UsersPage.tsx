@@ -198,7 +198,7 @@ export const UsersPage: React.FC = () => {
                value={roleFilter}
                onChange={(e) => setRoleFilter(e.target.value as any)}
                aria-label="Filter by Role"
-               className="w-full sm:w-auto bg-cardBg border border-glassBorder rounded-lg pl-10 pr-8 py-2 text-sm text-white focus:outline-none focus:border-gold appearance-none cursor-pointer"
+               className="w-full sm:w-auto bg-black/20 border border-white/5 rounded-lg pl-10 pr-8 py-2 text-sm text-white focus:outline-none focus:border-gold appearance-none cursor-pointer hover:bg-black/40"
              >
                <option value="all">All Roles</option>
                <option value="customer">{t('users.role_customer')}</option>
@@ -215,17 +215,17 @@ export const UsersPage: React.FC = () => {
               placeholder={t('common.search')} 
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full sm:w-64 bg-cardBg border border-glassBorder rounded-lg pl-10 pr-4 py-2 text-sm text-white focus:outline-none focus:border-gold"
+              className="w-full sm:w-64 bg-black/20 border border-white/5 rounded-lg pl-10 pr-4 py-2 text-sm text-white focus:outline-none focus:border-gold hover:bg-black/40"
             />
           </div>
         </div>
       </div>
 
-      <div className="bg-cardBg/50 backdrop-blur-md border border-glassBorder rounded-xl overflow-hidden shadow-xl">
+      <div className="bg-cardBg/40 backdrop-blur-xl border border-white/5 rounded-xl overflow-hidden shadow-xl">
         <div className="overflow-x-auto min-h-[400px]">
           <table className="w-full text-left border-collapse">
             <thead>
-              <tr className="bg-black/20 text-gray-400 text-xs uppercase tracking-wider border-b border-glassBorder">
+              <tr className="bg-black/20 text-gray-400 text-xs uppercase tracking-wider border-b border-white/5">
                 <th className="p-4 font-semibold">{t('users.table_profile')}</th>
                 <th className="p-4 font-semibold">{t('users.table_role')}</th>
                 <th className="p-4 font-semibold">{t('users.table_contact')}</th>

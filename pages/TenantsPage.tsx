@@ -151,24 +151,24 @@ export const TenantsPage: React.FC = () => {
               placeholder={t('common.search') + " (Server-Side)..."} 
               value={searchTerm} 
               onChange={(e) => setSearchTerm(e.target.value)} 
-              className="bg-cardBg border border-transparent rounded-[20px] pl-10 pr-4 py-3 text-sm text-white focus:border-gold outline-none w-64 transition-all" 
+              className="bg-black/20 border border-white/5 rounded-[20px] pl-10 pr-4 py-3 text-sm text-white focus:border-gold outline-none w-64 transition-all hover:bg-black/40" 
             />
           </div>
           <button 
             onClick={() => { setLastDoc(null); fetchTenants(false); }} 
             aria-label="Refresh Data"
-            className="p-3 bg-cardBg rounded-[20px] text-textSecondary hover:text-white"
+            className="p-3 bg-black/20 border border-white/5 rounded-[20px] text-textSecondary hover:text-white hover:bg-black/40"
           >
             <RefreshCcw size={20} className={loading ? 'animate-spin' : ''} />
           </button>
         </div>
       </div>
 
-      <div className="bg-cardBg rounded-2xl overflow-hidden border border-glassBorder shadow-2xl">
+      <div className="bg-cardBg/40 backdrop-blur-xl rounded-2xl overflow-hidden border border-white/5 shadow-2xl">
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
             <thead>
-              <tr className="bg-black/30 text-textSecondary text-xs uppercase tracking-wider border-b border-glassBorder">
+              <tr className="bg-black/30 text-textSecondary text-xs uppercase tracking-wider border-b border-white/5">
                 <th className="p-5 font-bold">{t('tenants.table_shop')}</th>
                 <th className="p-5 font-bold">{t('tenants.table_address')}</th>
                 <th className="p-5 font-bold text-center">{t('common.status')}</th>

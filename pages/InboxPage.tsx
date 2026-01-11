@@ -139,7 +139,7 @@ export const InboxPage: React.FC = () => {
       </div>
 
       {/* Main Table Card */}
-      <div className="bg-cardBg/30 border border-glassBorder rounded-2xl overflow-hidden shadow-2xl backdrop-blur-sm">
+      <div className="bg-cardBg/40 backdrop-blur-xl border border-white/5 rounded-2xl overflow-hidden shadow-2xl">
         <div className="overflow-x-auto min-h-[400px]">
           <table className="w-full text-left border-collapse">
             <thead>

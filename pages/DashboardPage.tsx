@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Layout } from '../components/Layout';
-import { collection, query, where, onSnapshot } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, orderBy } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { Users, Store, Clock, TrendingUp, ArrowRight, Activity, Calendar, Loader2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
@@ -104,8 +104,8 @@ const ReviewAnalytics: React.FC = () => {
          </div>
          <div className="w-full bg-white/5 h-1.5 rounded-full overflow-hidden">
             <div 
-              className="h-full bg-gradient-to-r from-emerald-500 to-emerald-400 transition-all duration-1000" 
-              style={{ width: `${summary.satisfaction}%` }}
+              className="h-full bg-gradient-to-r from-emerald-500 to-emerald-400 transition-all duration-1000 w-[var(--progress-width)]" 
+              style={{ '--progress-width': `${summary.satisfaction}%` } as React.CSSProperties}
             ></div>
          </div>
          <div className="flex justify-between text-[10px] font-bold">
@@ -125,7 +125,7 @@ const StatCard: React.FC<{
   subtext?: string;
   isGold?: boolean;
 }> = ({ title, value, icon, loading, subtext, isGold }) => (
-  <div className={`p-6 rounded-2xl relative overflow-hidden group transition-all duration-300 border ${isGold ? 'bg-gold border-gold' : 'bg-cardBg border-glassBorder hover:border-gold/50'}`}>
+  <div className={`p-6 rounded-2xl relative overflow-hidden group transition-all duration-300 border glass-shine-hover ${isGold ? 'bg-gold border-gold' : 'bg-cardBg border-glassBorder hover:border-gold/50'}`}>
     <div className="relative z-10 flex flex-col h-full justify-between">
       <div className="flex justify-between items-start mb-4">
         <div className={`p-3 rounded-xl ${isGold ? 'bg-black/10 text-black' : 'bg-darkBg text-gold'}`}>
@@ -172,7 +172,8 @@ export const DashboardPage: React.FC = () => {
     });
 
     // 2. Real-time Tenants (Revenue, Pending, Recent)
-    const unsubscribeTenants = onSnapshot(collection(db, "tenants"), (snapshot) => {
+    // Optimized: Only fetch what is necessary for the dashboard
+    const unsubscribeTenants = onSnapshot(query(collection(db, "tenants"), orderBy('created_at', 'desc')), (snapshot) => {
       let calculatedRevenue = 0;
       let successfulRegistrations = 0;
       let pendingCount = 0;
@@ -182,28 +183,23 @@ export const DashboardPage: React.FC = () => {
         const data = doc.data() as Tenant;
         const status = (data.status as string) || '';
         
-        // Skip soft-deleted for revenue/list
         if (status === 'deleted') return;
 
-        // Revenue Stats (still based on active tenants payments)
+        // Stats: Global Totals
         if (status === 'active') {
           const amount = data.invoice?.amount || data.registration_fee || 0;
           calculatedRevenue += amount;
           successfulRegistrations++;
         }
 
-        // Pending Stats & Recent List (STRICT FILTER: ONLY NEEDS REVIEW)
+        // List: Pending Action Items (Needs Review)
         if (['waiting_proof', 'payment_submitted', 'pending_payment', 'awaiting_payment', 'cancellation_requested'].includes(status)) {
           pendingCount++;
-          recents.push({ ...data, id: doc.id });
+          // Only show top 5 in dashboard for performance
+          if (recents.length < 5) {
+            recents.push({ ...data, id: doc.id });
+          }
         }
-      });
-
-      // Sort by Most Recent
-      recents.sort((a, b) => {
-         const timeA = a.created_at?.seconds ? a.created_at.seconds : (a.created_at || 0);
-         const timeB = b.created_at?.seconds ? b.created_at.seconds : (b.created_at || 0);
-         return timeB - timeA;
       });
 
       const revenueString = new Intl.NumberFormat('id-ID', {
@@ -216,7 +212,7 @@ export const DashboardPage: React.FC = () => {
         revenue: revenueString,
         transactions: successfulRegistrations
       }));
-      setRecentTenants(recents.slice(0, 5));
+      setRecentTenants(recents);
     });
 
     // 3. Real-time Barbershops (Active Partners Count - Source of Truth)

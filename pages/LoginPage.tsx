@@ -66,12 +66,19 @@ export const LoginPage: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-darkBg flex items-center justify-center p-4">
-      <div className="w-full max-w-md bg-cardBg p-10 rounded-[30px] border border-glassBorder shadow-2xl relative overflow-hidden group">
+    <div className="min-h-screen bg-darkBg flex items-center justify-center p-4 relative overflow-hidden">
+      
+      {/* LIQUID GOLD BACKGROUND */}
+      <div className="absolute top-0 left-0 w-full h-full overflow-hidden pointer-events-none">
+         <div className="absolute top-[10%] left-[20%] w-96 h-96 bg-gold/20 rounded-full blur-[100px] animate-drift-slow mix-blend-screen"></div>
+         <div className="absolute bottom-[10%] right-[20%] w-80 h-80 bg-goldHover/20 rounded-full blur-[80px] animate-drift-medium mix-blend-screen"></div>
+         <div className="absolute top-[40%] left-[50%] w-64 h-64 bg-yellow-600/10 rounded-full blur-[60px] animate-drift-fast mix-blend-screen"></div>
+      </div>
+
+      <div className="w-full max-w-md bg-cardBg/60 backdrop-blur-3xl p-10 rounded-[30px] border border-white/10 shadow-2xl relative overflow-hidden group z-10">
         
-        {/* Subtle Gold Glow Background */}
-        <div className="absolute top-[-50px] left-[-50px] w-40 h-40 bg-gold opacity-10 blur-[80px] rounded-full group-hover:opacity-20 transition-opacity duration-1000"></div>
-        <div className="absolute bottom-[-50px] right-[-50px] w-40 h-40 bg-gold opacity-10 blur-[80px] rounded-full group-hover:opacity-20 transition-opacity duration-1000"></div>
+        {/* Subtle internal shine */}
+        <div className="absolute inset-0 bg-gradient-to-b from-white/5 to-transparent pointer-events-none"></div>
 
         <div className="flex flex-col items-center mb-10 relative z-10">
           {/* LOGO REPLACEMENT */}

@@ -22,9 +22,6 @@ const generatePassword = (length = 8): string => {
  * Improved with Atomic Rollback and Centralized Constants
  */
 export const approveTenantRegistration = async (tenant: Tenant) => {
-  console.log("=== START PROVISIONING ===");
-  console.log("Target:", tenant.business_name);
-  
   const password = generatePassword();
   const secondaryAppName = `provisioning-${Date.now()}`;
   let secondaryApp: firebase.app.App | undefined;
@@ -32,7 +29,6 @@ export const approveTenantRegistration = async (tenant: Tenant) => {
 
   try {
     // 1. Initialize Secondary App (Compat SDK)
-    console.log("1. Initializing Secondary Firebase App...");
     secondaryApp = firebase.initializeApp(firebaseConfig, secondaryAppName);
     const secondaryAuth = secondaryApp.auth();
     
@@ -40,24 +36,19 @@ export const approveTenantRegistration = async (tenant: Tenant) => {
     await secondaryAuth.setPersistence(firebase.auth.Auth.Persistence.NONE);
 
     // 2. Create User in Firebase Auth
-    console.log(`2. Creating Auth User for ${tenant.owner_email}...`);
     const userCredential = await secondaryAuth.createUserWithEmailAndPassword(tenant.owner_email, password);
     createdUser = userCredential.user;
     const newOwnerUid = createdUser?.uid;
     
     if (!newOwnerUid) throw new Error("Could not create user or retrieve UID.");
     
-    console.log("   > Auth Created. New UID:", newOwnerUid);
-    
     // NOTE: We do NOT sign out yet. We keep the session to allow rollback (delete) if needed.
 
     // 3. Prepare Database Batch
-    console.log("3. Preparing Database Writes...");
     const batch = writeBatch(db);
     
     // --- A. Create Barbershop Document ---
     const newShopId = doc(collection(db, "barbershops")).id; 
-    console.log("   > Generated Shop ID:", newShopId);
     const barbershopRef = doc(db, 'barbershops', newShopId);
     
     const newBarbershopData: Barbershop = {
@@ -131,9 +122,7 @@ export const approveTenantRegistration = async (tenant: Tenant) => {
     batch.set(notificationRef, notificationData);
 
     // 4. Commit Batch
-    console.log("4. Committing to Firestore...");
     await batch.commit();
-    console.log("=== PROVISIONING SUCCESS ===");
 
     return { 
       success: true, 
@@ -150,7 +139,6 @@ export const approveTenantRegistration = async (tenant: Tenant) => {
       console.warn("Performing Rollback: Deleting created Auth User...", createdUser.uid);
       try {
         await createdUser.delete();
-        console.log("Rollback successful: User deleted.");
       } catch (cleanupError) {
         console.error("CRITICAL: Failed to rollback user deletion!", cleanupError);
         // This is a rare worst-case, but at least we tried.
@@ -164,7 +152,6 @@ export const approveTenantRegistration = async (tenant: Tenant) => {
   } finally {
     // 5. Cleanup Secondary App
     if (secondaryApp) {
-      console.log("5. Cleaning up secondary app...");
       // Ensure we are signed out before deleting the app instance (just in case)
       await secondaryApp.auth().signOut().catch(() => {});
       await secondaryApp.delete(); 
@@ -176,8 +163,6 @@ export const approveTenantRegistration = async (tenant: Tenant) => {
  * SCENARIO A: REJECT TENANT
  */
 export const rejectTenantRegistration = async (tenant: Tenant, reason: string) => {
-  console.log("=== REJECTING TENANT ===", tenant.id);
-  
   const batch = writeBatch(db);
   const tenantRef = doc(db, 'tenants', tenant.id);
 
@@ -224,8 +209,6 @@ export const rejectTenantRegistration = async (tenant: Tenant, reason: string) =
  * SCENARIO C: APPROVE REFUND (CANCEL WITH REFUND)
  */
 export const approveRefund = async (tenant: Tenant, refundProofUrl: string, adminNote: string) => {
-  console.log("=== APPROVING REFUND ===", tenant.id);
-  
   const batch = writeBatch(db);
   const tenantRef = doc(db, 'tenants', tenant.id);
 
@@ -280,8 +263,6 @@ export const approveRefund = async (tenant: Tenant, refundProofUrl: string, admi
  * SCENARIO D: SUSPEND TENANT (Late Payment / Violation)
  */
 export const suspendTenant = async (tenant: Tenant, reason: string) => {
-  console.log("=== SUSPENDING TENANT & ADMIN USER ===", tenant.id);
-  
   const batch = writeBatch(db);
   const tenantRef = doc(db, 'tenants', tenant.id);
 
@@ -340,8 +321,6 @@ export const suspendTenant = async (tenant: Tenant, reason: string) => {
  * SCENARIO E: DELETE TENANT (Permanent)
  */
 export const deleteTenant = async (tenant: Tenant) => {
-  console.log("=== DELETING TENANT PERMANENTLY ===", tenant.id);
-  
   const batch = writeBatch(db);
   const tenantRef = doc(db, 'tenants', tenant.id);
 
@@ -376,7 +355,6 @@ export const deleteTenant = async (tenant: Tenant) => {
  * DELETE BARBERSHOP (Permanent & Cascading)
  */
 export const deleteBarbershop = async (shopId: string) => {
-  console.log("=== DELETING BARBERSHOP & RELATED DATA PERMANENTLY ===", shopId);
   const batch = writeBatch(db);
   const shopRef = doc(db, 'barbershops', shopId);
   
@@ -431,7 +409,6 @@ export const deleteBarbershop = async (shopId: string) => {
  * DELETE USER (Permanent)
  */
 export const deleteUser = async (userId: string) => {
-  console.log("=== DELETING USER PERMANENTLY ===", userId);
   const userRef = doc(db, 'users', userId);
   
   try {
@@ -447,7 +424,6 @@ export const deleteUser = async (userId: string) => {
  * TOGGLE BARBERSHOP STATUS (Cascading Suspend/Activate)
  */
 export const toggleBarbershopStatus = async (shopId: string, isActive: boolean) => {
-  console.log(`=== TOGGLING SHOP ${shopId} -> Active: ${isActive} ===`);
   const batch = writeBatch(db);
   
   try {
@@ -491,7 +467,6 @@ export const toggleBarbershopStatus = async (shopId: string, isActive: boolean) 
  * TOGGLE USER SUSPENSION (Cascading)
  */
 export const toggleUserSuspension = async (userId: string, isSuspended: boolean) => {
-  console.log(`=== TOGGLING USER ${userId} -> Suspended: ${isSuspended} ===`);
   const batch = writeBatch(db);
   const userRef = doc(db, 'users', userId);
   

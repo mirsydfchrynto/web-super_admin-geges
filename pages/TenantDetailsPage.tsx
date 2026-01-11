@@ -177,12 +177,13 @@ export const TenantDetailsPage: React.FC = () => {
         </div>
 
         {/* Hero Section */}
-        <div className="relative overflow-hidden rounded-3xl border border-glassBorder bg-gradient-to-b from-cardBg/80 to-cardBg/40 backdrop-blur-md p-8 mb-8 shadow-2xl">
-          <div className="absolute top-0 right-0 w-64 h-64 bg-gold/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2 pointer-events-none"></div>
+        <div className="relative overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-b from-cardBg/80 to-cardBg/40 backdrop-blur-xl p-8 mb-8 shadow-2xl group">
+          <div className="absolute top-[-50%] right-[-10%] w-96 h-96 bg-gold/10 rounded-full blur-[80px] animate-drift-slow pointer-events-none mix-blend-screen"></div>
+          <div className="absolute bottom-[-50%] left-[10%] w-80 h-80 bg-yellow-600/10 rounded-full blur-[60px] animate-drift-medium pointer-events-none mix-blend-screen"></div>
           
           <div className="relative z-10 flex flex-col md:flex-row justify-between gap-8">
              <div className="flex-1">
-                <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold uppercase tracking-wider mb-6 border ${currentStatus.color}`}>
+                <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold uppercase tracking-wider mb-6 border backdrop-blur-md ${currentStatus.color}`}>
                    <StatusIcon size={14} />
                    {currentStatus.label}
                 </div>
@@ -251,7 +252,7 @@ export const TenantDetailsPage: React.FC = () => {
             {tenant.status === 'active' && generatedCreds && (
               <div className="bg-emerald-950/30 border border-emerald-500/20 rounded-2xl p-1 relative overflow-hidden group">
                  <div className="absolute inset-0 bg-emerald-500/5 animate-pulse"></div>
-                 <div className="relative bg-cardBg/80 backdrop-blur-xl rounded-xl p-6 border border-white/5">
+                 <div className="relative bg-cardBg/60 backdrop-blur-xl rounded-xl p-6 border border-white/5">
                     <div className="flex items-center gap-4 mb-6">
                        <div className="p-3 bg-emerald-500/20 rounded-xl text-emerald-400">
                           <Key size={24} />
@@ -283,7 +284,7 @@ export const TenantDetailsPage: React.FC = () => {
             )}
 
             {/* Owner Details */}
-            <div className="bg-cardBg border border-glassBorder rounded-2xl p-8">
+            <div className="bg-cardBg/60 backdrop-blur-xl border border-white/5 rounded-2xl p-8 shadow-xl">
                <h3 className="text-lg font-bold text-white mb-6 flex items-center gap-2">
                   <FileText className="text-blue-500" size={20}/>
                   {t('details.owner_info')}
@@ -309,7 +310,7 @@ export const TenantDetailsPage: React.FC = () => {
             </div>
 
             {/* Legal Documents */}
-            <div className="bg-cardBg border border-glassBorder rounded-2xl p-8">
+            <div className="bg-cardBg/60 backdrop-blur-xl border border-white/5 rounded-2xl p-8 shadow-xl">
                <div className="flex justify-between items-center mb-6">
                   <h3 className="text-lg font-bold text-white flex items-center gap-2">
                      <FileCheck className="text-gold" size={20}/>
@@ -392,7 +393,7 @@ export const TenantDetailsPage: React.FC = () => {
           <div className="lg:col-span-4 space-y-8">
              
              {/* Payment Card */}
-             <div className="bg-cardBg border border-glassBorder rounded-2xl overflow-hidden shadow-xl">
+             <div className="bg-cardBg/60 backdrop-blur-xl border border-white/5 rounded-2xl overflow-hidden shadow-xl">
                 <div className="p-6 border-b border-white/5">
                    <h3 className="text-sm font-bold text-gray-400 uppercase tracking-widest">Payment Info</h3>
                 </div>
@@ -446,7 +447,7 @@ export const TenantDetailsPage: React.FC = () => {
              </div>
 
              {/* Timeline */}
-             <div className="bg-cardBg/30 border border-glassBorder rounded-2xl p-6">
+             <div className="bg-cardBg/40 backdrop-blur-xl border border-white/5 rounded-2xl p-6">
                 <h3 className="text-sm font-bold text-gray-400 uppercase tracking-widest mb-6 flex items-center gap-2">
                    <Clock size={16}/> Activity Log
                 </h3>
