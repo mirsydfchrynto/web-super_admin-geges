@@ -111,9 +111,9 @@ export const RefundRequestsPage: React.FC = () => {
                     <td className="p-5 text-right">
                        <button 
                          onClick={() => navigate(`/tenants/${req.id}`)}
-                         className="px-4 py-2 bg-orange-600 hover:bg-orange-500 text-white text-xs font-bold rounded-lg transition-colors flex items-center gap-2 ml-auto shadow-lg shadow-orange-900/20"
+                         className="px-6 py-2.5 bg-gold hover:bg-goldHover text-black text-xs font-bold rounded-xl transition-all flex items-center gap-2 ml-auto shadow-lg shadow-gold/10 hover:scale-[1.02] active:scale-95 uppercase tracking-wider"
                        >
-                          PROSES <ArrowRight size={14}/>
+                          PROSES REQUEST <ArrowRight size={14}/>
                        </button>
                     </td>
                   </tr>

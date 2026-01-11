@@ -11,9 +11,8 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 
 
 const ReviewAnalytics: React.FC = () => {
   const [data, setData] = useState([
-    { name: 'Positif', count: 0, color: '#4CAF50' },
-    { name: 'Negatif', count: 0, color: '#F44336' },
-    { name: 'Netral', count: 0, color: '#FFC107' },
+    { name: 'Sentimen Positif', count: 0, color: '#22c55e' }, // Emerald-500
+    { name: 'Sentimen Negatif', count: 0, color: '#ef4444' }, // Red-500
   ]);
   const [summary, setSummary] = useState({ total: 0, satisfaction: 0 });
   const [loading, setLoading] = useState(true);
@@ -24,33 +23,30 @@ const ReviewAnalytics: React.FC = () => {
     const unsubscribe = onSnapshot(reviewsColl, (snapshot) => {
       let positive = 0;
       let negative = 0;
-      let neutral = 0;
 
       snapshot.forEach(doc => {
         const d = doc.data();
-        // Use AI Sentiment if available, fallback to rating
         const sentiment = d.sentiment?.toLowerCase();
         
-        if (sentiment === 'positif') positive++;
-        else if (sentiment === 'negatif') negative++;
-        else if (sentiment === 'netral') neutral++;
-        else {
-           // Fallback if AI hasn't processed it yet
+        if (sentiment === 'positif') {
+          positive++;
+        } else if (sentiment === 'negatif') {
+          negative++;
+        } else if (!sentiment) {
+           // If sentiment field is missing, use rating as secondary source
            const rating = d.rating || 0;
            if (rating >= 4) positive++;
-           else if (rating <= 2) negative++;
-           else neutral++;
+           else if (rating > 0 && rating <= 3) negative++;
         }
+        // 'netral' is skipped explicitly
       });
 
-      const total = snapshot.size;
-      // Satisfaction = Positive / Total (excluding neutral? or Total including neutral? Standard is Total)
+      const total = positive + negative;
       const satisfaction = total > 0 ? Math.round((positive / total) * 100) : 0;
 
       setData([
-        { name: 'Positif', count: positive, color: '#4CAF50' },
-        { name: 'Negatif', count: negative, color: '#F44336' },
-        { name: 'Netral', count: neutral, color: '#FFC107' },
+        { name: 'Positif', count: positive, color: '#22c55e' },
+        { name: 'Negatif', count: negative, color: '#ef4444' },
       ]);
       setSummary({ total, satisfaction });
       setLoading(false);
@@ -63,35 +59,35 @@ const ReviewAnalytics: React.FC = () => {
   }, []);
 
   return (
-    <div className="bg-cardBg border border-glassBorder rounded-2xl p-6 relative overflow-hidden h-full flex flex-col">
+    <div className="bg-cardBg border border-glassBorder rounded-2xl p-6 relative overflow-hidden h-full flex flex-col shadow-xl">
       <div className="flex justify-between items-center mb-6">
          <h3 className="text-white font-bold flex items-center gap-2">
-            <Activity className="text-gold" size={20}/> Analisis Ulasan
+            <Activity className="text-gold" size={20}/> Analisa Kepuasan
          </h3>
-         <div className="bg-white/5 px-3 py-1 rounded-full text-[10px] text-gray-400">Real-time</div>
+         <div className="bg-white/5 px-3 py-1 rounded-full text-[10px] text-gray-400 font-mono tracking-widest uppercase">Sentiment AI</div>
       </div>
       
-      <div className="flex-1 w-full min-h-[200px]">
+      <div className="flex-1 w-full min-h-[220px]">
         {loading ? (
           <div className="flex items-center justify-center h-full">
              <Loader2 className="animate-spin text-gold" size={32}/>
           </div>
         ) : summary.total === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-gray-500 text-xs">
-             <Store size={40} className="mb-2 opacity-20"/>
-             Belum ada ulasan masuk.
+             <Activity size={40} className="mb-2 opacity-20"/>
+             Belum ada ulasan teranalisa.
           </div>
         ) : (
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={data} layout="vertical" margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
               <XAxis type="number" hide />
-              <YAxis dataKey="name" type="category" width={100} tick={{ fill: '#9CA3AF', fontSize: 10 }} axisLine={false} tickLine={false} />
+              <YAxis dataKey="name" type="category" width={80} tick={{ fill: '#9CA3AF', fontSize: 11, fontWeight: 'bold' }} axisLine={false} tickLine={false} />
               <Tooltip 
-                cursor={{ fill: 'transparent' }}
-                contentStyle={{ backgroundColor: '#1E1E1E', borderColor: '#333', borderRadius: '8px', color: '#fff' }}
-                itemStyle={{ color: '#fff' }}
+                cursor={{ fill: 'rgba(255,255,255,0.05)' }}
+                contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', borderRadius: '12px', border: '1px solid rgba(255,215,0,0.1)' }}
+                itemStyle={{ color: '#fff', fontSize: '12px' }}
               />
-              <Bar dataKey="count" radius={[0, 4, 4, 0]} barSize={20}>
+              <Bar dataKey="count" radius={[0, 6, 6, 0]} barSize={24}>
                 {data.map((entry, index) => (
                   <Cell key={`cell-${index}`} fill={entry.color} />
                 ))}
@@ -101,11 +97,21 @@ const ReviewAnalytics: React.FC = () => {
         )}
       </div>
       
-      <div className="mt-4 pt-4 border-t border-glassBorder flex justify-between text-xs text-textSecondary">
-         <span>Total Ulasan: {summary.total}</span>
-         <span className={`font-bold ${summary.satisfaction >= 70 ? 'text-green-400' : summary.satisfaction >= 50 ? 'text-amber-400' : 'text-red-400'}`}>
-            {summary.satisfaction}% Kepuasan
-         </span>
+      <div className="mt-4 pt-4 border-t border-white/5 flex flex-col gap-2">
+         <div className="flex justify-between items-end">
+            <span className="text-[10px] text-textSecondary uppercase font-bold tracking-wider">Total Feedback Valid</span>
+            <span className="text-white font-bold text-lg">{summary.total}</span>
+         </div>
+         <div className="w-full bg-white/5 h-1.5 rounded-full overflow-hidden">
+            <div 
+              className="h-full bg-gradient-to-r from-emerald-500 to-emerald-400 transition-all duration-1000" 
+              style={{ width: `${summary.satisfaction}%` }}
+            ></div>
+         </div>
+         <div className="flex justify-between text-[10px] font-bold">
+            <span className="text-emerald-400">{summary.satisfaction}% Kepuasan</span>
+            <span className="text-gray-500">Target: 85%</span>
+         </div>
       </div>
     </div>
   );
@@ -165,9 +171,8 @@ export const DashboardPage: React.FC = () => {
       setStats(prev => ({ ...prev, totalUsers: total - deleted }));
     });
 
-    // 2. Real-time Tenants (Revenue, Active, Pending, Recent)
+    // 2. Real-time Tenants (Revenue, Pending, Recent)
     const unsubscribeTenants = onSnapshot(collection(db, "tenants"), (snapshot) => {
-      let activeCount = 0;
       let calculatedRevenue = 0;
       let successfulRegistrations = 0;
       let pendingCount = 0;
@@ -177,12 +182,11 @@ export const DashboardPage: React.FC = () => {
         const data = doc.data() as Tenant;
         const status = (data.status as string) || '';
         
-        // Skip soft-deleted
+        // Skip soft-deleted for revenue/list
         if (status === 'deleted') return;
 
-        // Active & Revenue Stats
+        // Revenue Stats (still based on active tenants payments)
         if (status === 'active') {
-          activeCount++;
           const amount = data.invoice?.amount || data.registration_fee || 0;
           calculatedRevenue += amount;
           successfulRegistrations++;
@@ -208,18 +212,25 @@ export const DashboardPage: React.FC = () => {
 
       setStats(prev => ({
         ...prev,
-        activeTenants: activeCount,
         waitingApproval: pendingCount,
         revenue: revenueString,
         transactions: successfulRegistrations
       }));
       setRecentTenants(recents.slice(0, 5));
-      setLoading(false);
+    });
+
+    // 3. Real-time Barbershops (Active Partners Count - Source of Truth)
+    const unsubscribeBarbershops = onSnapshot(collection(db, "barbershops"), (snapshot) => {
+       // Count all barbershops that are not soft-deleted
+       const count = snapshot.docs.filter(doc => !doc.data().isDeleted).length;
+       setStats(prev => ({ ...prev, activeTenants: count }));
+       setLoading(false);
     });
 
     return () => {
       unsubscribeUsers();
       unsubscribeTenants();
+      unsubscribeBarbershops();
     };
   }, []);
 

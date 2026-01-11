@@ -46,9 +46,25 @@ export const ReviewsPage: React.FC = () => {
     ? (reviews.reduce((acc, curr) => acc + curr.rating, 0) / totalReviews).toFixed(1) 
     : '0';
   
-  const positiveCount = reviews.filter(r => (r.rating >= 4)).length; 
-  const negativeCount = reviews.filter(r => (r.rating <= 3)).length;
+  // LOGIC: Prioritize AI Sentiment > Rating Fallback. Skip 'netral'.
+  const positiveCount = reviews.filter(r => {
+     const s = r.sentiment?.toLowerCase();
+     if (s === 'positif') return true;
+     if (s === 'negatif' || s === 'netral') return false;
+     return r.rating >= 4;
+  }).length;
+
+  const negativeCount = reviews.filter(r => {
+     const s = r.sentiment?.toLowerCase();
+     if (s === 'negatif') return true;
+     if (s === 'positif' || s === 'netral') return false;
+     return r.rating > 0 && r.rating <= 3;
+  }).length;
   
+  // Note: Total for percentage calculation should be based on relevant reviews (Pos + Neg), 
+  // but usually businesses want % of Total Reviews. 
+  // We'll stick to % of Total Reviews for "Conversion Rate" feel, or % of Sentiment?
+  // Let's use % of Total to avoid > 100% if we exclude neutral from denominator but include in total.
   const positivePercentage = totalReviews > 0 ? ((positiveCount / totalReviews) * 100).toFixed(1) : '0';
 
   // --- Chart Data Preparation ---
@@ -167,7 +183,7 @@ export const ReviewsPage: React.FC = () => {
                       contentStyle={{ backgroundColor: '#1e293b', borderColor: '#334155', borderRadius: '8px' }}
                       itemStyle={{ color: '#fff' }}
                     />
-                    <Bar dataKey="count" fill="#F4B400" radius={[0, 4, 4, 0]} barSize={20} />
+                    <Bar dataKey="count" fill="#C3A47B" radius={[0, 4, 4, 0]} barSize={20} />
                  </BarChart>
                </ResponsiveContainer>
              </div>

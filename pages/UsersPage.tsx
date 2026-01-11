@@ -198,7 +198,7 @@ export const UsersPage: React.FC = () => {
                value={roleFilter}
                onChange={(e) => setRoleFilter(e.target.value as any)}
                aria-label="Filter by Role"
-               className="w-full sm:w-auto bg-cardBg border border-glassBorder rounded-lg pl-10 pr-8 py-2 text-sm text-white focus:outline-none focus:border-blue-500 appearance-none cursor-pointer"
+               className="w-full sm:w-auto bg-cardBg border border-glassBorder rounded-lg pl-10 pr-8 py-2 text-sm text-white focus:outline-none focus:border-gold appearance-none cursor-pointer"
              >
                <option value="all">All Roles</option>
                <option value="customer">{t('users.role_customer')}</option>
@@ -215,7 +215,7 @@ export const UsersPage: React.FC = () => {
               placeholder={t('common.search')} 
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full sm:w-64 bg-cardBg border border-glassBorder rounded-lg pl-10 pr-4 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
+              className="w-full sm:w-64 bg-cardBg border border-glassBorder rounded-lg pl-10 pr-4 py-2 text-sm text-white focus:outline-none focus:border-gold"
             />
           </div>
         </div>
@@ -279,13 +279,13 @@ export const UsersPage: React.FC = () => {
                         )}
                         {user.role === 'admin_owner' && (
                           <div className="flex flex-col items-start gap-1">
-                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-blue-500/20 text-blue-400 border border-blue-500/30">
+                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-gold/20 text-gold border border-gold/30">
                               <Scissors size={10} /> OWNER
                             </span>
                             {user.barbershop_id && (
                                <button 
                                  onClick={() => navigate(`/barbershops/${user.barbershop_id}`)}
-                                 className="text-[10px] text-gray-400 hover:text-blue-400 flex items-center gap-1 transition-colors"
+                                 className="text-[10px] text-gray-400 hover:text-gold flex items-center gap-1 transition-colors"
                                >
                                   <Store size={10}/> {t('common.view')} Shop <ExternalLink size={8}/>
                                </button>
@@ -339,7 +339,7 @@ export const UsersPage: React.FC = () => {
                         </button>
                         <button 
                           onClick={() => handleEdit(user)}
-                          className="px-3 py-1.5 bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 border border-blue-500/20 rounded-lg text-xs font-medium transition-colors"
+                          className="px-3 py-1.5 bg-gold/10 hover:bg-gold/20 text-gold border border-gold/20 rounded-lg text-xs font-bold transition-colors"
                         >
                           {t('users.btn_manage')}
                         </button>

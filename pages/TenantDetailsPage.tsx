@@ -156,7 +156,7 @@ export const TenantDetailsPage: React.FC = () => {
 
       {zoomedImage && (
         <div className="fixed inset-0 z-[100] bg-black/95 backdrop-blur-xl flex items-center justify-center p-8 animate-in fade-in duration-300" onClick={() => setZoomedImage(null)}>
-          <button className="absolute top-8 right-8 text-white/50 hover:text-white transition-colors bg-white/10 p-2 rounded-full">
+          <button aria-label="Close Preview" className="absolute top-8 right-8 text-white/50 hover:text-white transition-colors bg-white/10 p-2 rounded-full">
             <X size={24} />
           </button>
           <img src={zoomedImage} className="max-w-full max-h-full object-contain rounded-xl shadow-2xl border border-white/10" alt="Preview" />
@@ -211,7 +211,7 @@ export const TenantDetailsPage: React.FC = () => {
                 {['waiting_proof', 'payment_submitted', 'awaiting_payment', 'cancellation_requested'].includes(tenant.status) && (
                    <button 
                      onClick={() => setShowApprovalModal(true)}
-                     className="w-full py-4 px-6 bg-gold hover:bg-[#c4a066] text-black font-bold text-sm rounded-xl shadow-lg shadow-gold/20 hover:shadow-gold/30 transition-all flex items-center justify-center gap-3 transform hover:-translate-y-1"
+                     className="w-full py-4 px-6 bg-gold hover:bg-goldHover text-black font-bold text-sm rounded-xl shadow-lg shadow-gold/20 hover:shadow-gold/30 transition-all flex items-center justify-center gap-3 transform hover:-translate-y-1"
                    >
                      {tenant.status === 'cancellation_requested' ? 'Review Refund' : 'Review Application'}
                      <ArrowLeft size={18} className="rotate-180" />

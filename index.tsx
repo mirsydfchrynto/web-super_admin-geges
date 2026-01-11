@@ -4,6 +4,7 @@ import App from './App';
 import { Provider } from 'react-redux';
 import { store } from './store';
 import * as Sentry from "@sentry/react";
+import { XCircle } from 'lucide-react';
 
 const SENTRY_DSN = "https://2481b65344e0e6129dfcbde37a8b0d57@o4510682370015232.ingest.us.sentry.io/4510682379845632"; // GANTI DENGAN DSN DARI SENTRY.IO
 
@@ -30,13 +31,16 @@ root.render(
   <React.StrictMode>
     <Provider store={store}>
       <Sentry.ErrorBoundary fallback={
-        <div className="min-h-screen bg-[#111827] flex items-center justify-center p-4">
-           <div className="bg-[#1f2937] border border-red-500/20 rounded-2xl p-8 max-w-md text-center shadow-2xl">
+        <div className="min-h-screen bg-black flex items-center justify-center p-4 font-sans">
+           <div className="bg-[#1E1E1E] border border-white/5 rounded-2xl p-10 max-w-md text-center shadow-2xl">
+              <div className="w-20 h-20 bg-danger/10 text-danger rounded-full flex items-center justify-center mx-auto mb-6">
+                 <XCircle size={40} />
+              </div>
               <h2 className="text-2xl font-bold text-white mb-2">Terjadi Kesalahan</h2>
-              <p className="text-gray-400 mb-6">Sistem telah mencatat error ini. Tim kami akan segera memperbaikinya.</p>
+              <p className="text-gray-500 mb-8 text-sm">Sistem telah mencatat error ini secara otomatis. Tim teknis kami akan segera memperbaikinya.</p>
               <button 
                 onClick={() => window.location.reload()}
-                className="bg-[#C3A47B] text-black font-bold py-2 px-6 rounded-lg hover:bg-[#d4b58c] transition-colors"
+                className="w-full bg-[#C3A47B] text-black font-bold py-4 px-6 rounded-xl hover:bg-[#B9976E] transition-all shadow-lg shadow-gold/20 active:scale-95"
               >
                 Muat Ulang Halaman
               </button>
