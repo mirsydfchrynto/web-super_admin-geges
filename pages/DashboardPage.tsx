@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Layout } from '../components/Layout';
 import { collection, query, where, getCountFromServer, getDocs } from 'firebase/firestore';
 import { db } from '../lib/firebase';
-import { Users, Store, Clock, TrendingUp, ArrowRight, Activity, Calendar } from 'lucide-react';
+import { Users, Store, Clock, TrendingUp, ArrowRight, Activity, Calendar, Loader2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { Tenant } from '../types';
 import { useTranslation } from '../hooks/useTranslation';
@@ -10,12 +10,51 @@ import { useTranslation } from '../hooks/useTranslation';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 
 const ReviewAnalytics: React.FC = () => {
-  // Mock data for now (Replace with real aggregation from reviews collection later)
-  const data = [
-    { name: 'Positif (4-5★)', count: 85, color: '#4CAF50' }, // Green
-    { name: 'Netral (3★)', count: 12, color: '#FFC107' },   // Amber
-    { name: 'Negatif (1-2★)', count: 5, color: '#F44336' }, // Red
-  ];
+  const [data, setData] = useState([
+    { name: 'Positif (4-5★)', count: 0, color: '#4CAF50' },
+    { name: 'Netral (3★)', count: 0, color: '#FFC107' },
+    { name: 'Negatif (1-2★)', count: 0, color: '#F44336' },
+  ]);
+  const [summary, setSummary] = useState({ total: 0, satisfaction: 0 });
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchReviews = async () => {
+      try {
+        const reviewsColl = collection(db, "app_ratings");
+        const snapshot = await getDocs(reviewsColl);
+        
+        let positive = 0;
+        let neutral = 0;
+        let negative = 0;
+        let totalScore = 0;
+
+        snapshot.forEach(doc => {
+          const rating = doc.data().rating || 0;
+          totalScore += rating;
+          if (rating >= 4) positive++;
+          else if (rating === 3) neutral++;
+          else negative++;
+        });
+
+        const total = snapshot.size;
+        const satisfaction = total > 0 ? Math.round((positive / total) * 100) : 0;
+
+        setData([
+          { name: 'Positif (4-5★)', count: positive, color: '#4CAF50' },
+          { name: 'Netral (3★)', count: neutral, color: '#FFC107' },
+          { name: 'Negatif (1-2★)', count: negative, color: '#F44336' },
+        ]);
+        setSummary({ total, satisfaction });
+      } catch (e) {
+        console.error("Error fetching reviews:", e);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchReviews();
+  }, []);
 
   return (
     <div className="bg-cardBg border border-glassBorder rounded-2xl p-6 relative overflow-hidden h-full flex flex-col">
@@ -23,31 +62,44 @@ const ReviewAnalytics: React.FC = () => {
          <h3 className="text-white font-bold flex items-center gap-2">
             <Activity className="text-gold" size={20}/> Analisis Ulasan
          </h3>
-         <div className="bg-white/5 px-3 py-1 rounded-full text-[10px] text-gray-400">30 Hari Terakhir</div>
+         <div className="bg-white/5 px-3 py-1 rounded-full text-[10px] text-gray-400">Real-time Data</div>
       </div>
       
       <div className="flex-1 w-full min-h-[200px]">
-        <ResponsiveContainer width="100%" height="100%">
-          <BarChart data={data} layout="vertical" margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
-            <XAxis type="number" hide />
-            <YAxis dataKey="name" type="category" width={100} tick={{ fill: '#9CA3AF', fontSize: 10 }} axisLine={false} tickLine={false} />
-            <Tooltip 
-              cursor={{ fill: 'transparent' }}
-              contentStyle={{ backgroundColor: '#1E1E1E', borderColor: '#333', borderRadius: '8px', color: '#fff' }}
-              itemStyle={{ color: '#fff' }}
-            />
-            <Bar dataKey="count" radius={[0, 4, 4, 0]} barSize={20}>
-              {data.map((entry, index) => (
-                <Cell key={`cell-${index}`} fill={entry.color} />
-              ))}
-            </Bar>
-          </BarChart>
-        </ResponsiveContainer>
+        {loading ? (
+          <div className="flex items-center justify-center h-full">
+             <Loader2 className="animate-spin text-gold" size={32}/>
+          </div>
+        ) : summary.total === 0 ? (
+          <div className="flex flex-col items-center justify-center h-full text-gray-500 text-xs">
+             <Store size={40} className="mb-2 opacity-20"/>
+             Belum ada ulasan masuk.
+          </div>
+        ) : (
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={data} layout="vertical" margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
+              <XAxis type="number" hide />
+              <YAxis dataKey="name" type="category" width={100} tick={{ fill: '#9CA3AF', fontSize: 10 }} axisLine={false} tickLine={false} />
+              <Tooltip 
+                cursor={{ fill: 'transparent' }}
+                contentStyle={{ backgroundColor: '#1E1E1E', borderColor: '#333', borderRadius: '8px', color: '#fff' }}
+                itemStyle={{ color: '#fff' }}
+              />
+              <Bar dataKey="count" radius={[0, 4, 4, 0]} barSize={20}>
+                {data.map((entry, index) => (
+                  <Cell key={`cell-${index}`} fill={entry.color} />
+                ))}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+        )}
       </div>
       
       <div className="mt-4 pt-4 border-t border-glassBorder flex justify-between text-xs text-textSecondary">
-         <span>Total Ulasan: 102</span>
-         <span className="text-green-400 font-bold">83% Kepuasan</span>
+         <span>Total Ulasan: {summary.total}</span>
+         <span className={`font-bold ${summary.satisfaction >= 70 ? 'text-green-400' : summary.satisfaction >= 50 ? 'text-amber-400' : 'text-red-400'}`}>
+            {summary.satisfaction}% Kepuasan
+         </span>
       </div>
     </div>
   );
@@ -84,8 +136,7 @@ const StatCard: React.FC<{
   </div>
 );
 
-export const DashboardPage: React.FC = () => {
-  const navigate = useNavigate();
+export const DashboardPage: React.FC = () => {  const navigate = useNavigate();
   const { t, formatDate } = useTranslation();
   const [stats, setStats] = useState({
     activeTenants: 0,

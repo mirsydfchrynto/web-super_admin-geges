@@ -14,3 +14,15 @@ export const getDisplayImageUrl = (urlOrBase64: string | undefined | null): stri
   // We use image/jpeg as a safe default for Base64
   return `data:image/jpeg;base64,${urlOrBase64}`;
 };
+
+/**
+ * Converts a File object to a Base64 string.
+ */
+export const fileToBase64 = (file: File): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = (error) => reject(error);
+  });
+};

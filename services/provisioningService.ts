@@ -251,6 +251,12 @@ export const approveRefund = async (tenant: Tenant, refundProofUrl: string, admi
 
     batch.update(tenantRef, updates);
 
+    // Deactivate Shop if exists
+    if (tenant.shop_id) {
+       const shopRef = doc(db, 'barbershops', tenant.shop_id);
+       batch.update(shopRef, { isActive: false });
+    }
+
     // Notification
     const notificationRef = doc(collection(db, 'notifications'));
     const notificationData: Notification = {
@@ -360,7 +366,19 @@ export const deleteBarbershop = async (shopId: string) => {
   const shopRef = doc(db, 'barbershops', shopId);
   
   try {
-    // 1. Get Shop Data to find Admin UID
+    // 0. Safety Check: Active & Future Queues
+    // 'waiting' = antrean sekarang, 'booked' = janji temu masa depan, 'ongoing' = sedang dilayani
+    const queuesQ = query(
+      collection(db, 'queues'), 
+      where('barbershop_id', '==', shopId),
+      where('status', 'in', ['waiting', 'booked', 'ongoing'])
+    );
+    const activeQueues = await getDocs(queuesQ);
+    if (!activeQueues.empty) {
+       throw new Error(`GAGAL HAPUS: Terdapat ${activeQueues.size} antrean aktif (Waiting/Booked/Ongoing) di barbershop ini. Admin harus membatalkan atau menyelesaikan antrean ini terlebih dahulu demi kepastian pelanggan.`);
+    }
+
+    // 1. Get Shop Data
     const shopSnap = await getDoc(shopRef);
     if (!shopSnap.exists()) {
        throw new Error("Barbershop not found");
@@ -370,17 +388,18 @@ export const deleteBarbershop = async (shopId: string) => {
     // 2. Delete Barbershop Doc
     batch.delete(shopRef);
 
-    // 3. Find and Delete Tenant Application (where shop_id == shopId)
+    // 3. Delete Associated Tenant
     const tenantQ = query(collection(db, 'tenants'), where('shop_id', '==', shopId));
     const tenantSnap = await getDocs(tenantQ);
-    tenantSnap.forEach((tDoc) => {
-       console.log(`> Queuing Tenant deletion: ${tDoc.id}`);
-       batch.delete(tDoc.ref);
-    });
+    tenantSnap.forEach((tDoc) => batch.delete(tDoc.ref));
 
-    // 4. Find and Delete Owner User (admin_uid)
+    // 4. Delete All Barbermen belonging to this shop
+    const barbermenQ = query(collection(db, 'barbermen'), where('barbershopId', '==', shopId));
+    const barbermenSnap = await getDocs(barbermenQ);
+    barbermenSnap.forEach((bDoc) => batch.delete(bDoc.ref));
+
+    // 5. Delete Owner User
     if (shopData.admin_uid) {
-       console.log(`> Queuing User deletion: ${shopData.admin_uid}`);
        const userRef = doc(db, 'users', shopData.admin_uid);
        batch.delete(userRef);
     }

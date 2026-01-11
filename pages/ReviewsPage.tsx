@@ -35,78 +35,9 @@ export const ReviewsPage: React.FC = () => {
     }
   };
 
-  const handleGenerateData = async () => {
-    const confirm = window.confirm("Ini akan menambahkan 5 data dummy ke database. Lanjutkan?");
-    if (!confirm) return;
-
-    try {
-      const dummyReviews = [
-        {
-          userId: 'dummy_1',
-          userName: 'Budi Santoso',
-          userEmail: 'budi@example.com',
-          rating: 5,
-          feedback: 'Pelayanan sangat memuaskan, cukurannya rapi banget!',
-          platform: 'android',
-          sentiment: 'positif',
-          sentimentConfidence: 0.95
-        },
-        {
-          userId: 'dummy_2',
-          userName: 'Siti Aminah',
-          userEmail: 'siti@example.com',
-          rating: 2,
-          feedback: 'Antriannya lama sekali, padahal sudah booking.',
-          platform: 'ios',
-          sentiment: 'negatif',
-          sentimentConfidence: 0.88
-        },
-        {
-          userId: 'dummy_3',
-          userName: 'Rizky Ramadhan',
-          userEmail: 'rizky@example.com',
-          rating: 5,
-          feedback: 'Tempatnya nyaman dan ber-AC, mantap!',
-          platform: 'android',
-          sentiment: 'positif',
-          sentimentConfidence: 0.92
-        },
-         {
-          userId: 'dummy_4',
-          userName: 'Joko Anwar',
-          userEmail: 'joko@example.com',
-          rating: 4,
-          feedback: 'Oke sih, cuma parkirannya agak sempit.',
-          platform: 'android',
-          sentiment: 'positif',
-          sentimentConfidence: 0.65
-        },
-        {
-          userId: 'dummy_5',
-          userName: 'Dina Marlina',
-          userEmail: 'dina@example.com',
-          rating: 1,
-          feedback: 'Barbernya kurang ramah, hasil potong tidak sesuai request.',
-          platform: 'ios',
-          sentiment: 'negatif',
-          sentimentConfidence: 0.98
-        }
-      ];
-
-      for (const review of dummyReviews) {
-        await addDoc(collection(db, 'app_ratings'), {
-          ...review,
-          createdAt: serverTimestamp(),
-          processed: true
-        });
-      }
-
-      toast.success('Data dummy berhasil ditambahkan!');
-      fetchData(); // Refresh data
-    } catch (error) {
-      console.error(error);
-      toast.error('Gagal menambahkan data dummy.');
-    }
+  const handleRefresh = async () => {
+    setLoading(true);
+    await fetchData();
   };
 
   // --- Statistics Calculation ---
@@ -115,17 +46,16 @@ export const ReviewsPage: React.FC = () => {
     ? (reviews.reduce((acc, curr) => acc + curr.rating, 0) / totalReviews).toFixed(1) 
     : '0';
   
-  const positiveCount = reviews.filter(r => r.sentiment === 'positif').length;
-  const negativeCount = reviews.filter(r => r.sentiment === 'negatif').length;
-  // Assuming non-labeled are either neutral or just unclassified, but for this specific app logic (from context), 
-  // only pos/neg are saved usually. But let's handle the case where sentiment is missing.
+  const positiveCount = reviews.filter(r => (r.rating >= 4)).length; // Simplified logic if sentiment field is missing
+  const negativeCount = reviews.filter(r => (r.rating <= 2)).length;
   
   const positivePercentage = totalReviews > 0 ? ((positiveCount / totalReviews) * 100).toFixed(1) : '0';
 
   // --- Chart Data Preparation ---
   const sentimentData = [
-    { name: 'Positif', value: positiveCount, color: COLORS.positive },
-    { name: 'Negatif', value: negativeCount, color: COLORS.negative },
+    { name: 'Positif (4-5★)', value: positiveCount, color: COLORS.positive },
+    { name: 'Negatif (1-2★)', value: negativeCount, color: COLORS.negative },
+    { name: 'Netral (3★)', value: totalReviews - positiveCount - negativeCount, color: COLORS.neutral },
   ];
 
   const starDistribution = [1, 2, 3, 4, 5].map(star => ({
@@ -154,11 +84,11 @@ export const ReviewsPage: React.FC = () => {
             <p className="text-textSecondary text-sm">Monitor kepuasan pengguna berdasarkan ulasan aplikasi.</p>
           </div>
           <button 
-            onClick={handleGenerateData}
+            onClick={handleRefresh}
             className="flex items-center gap-2 px-4 py-2 bg-white/5 hover:bg-white/10 text-textSecondary hover:text-white border border-glassBorder rounded-lg transition-all text-xs font-semibold uppercase tracking-wider"
           >
             <Database size={14} />
-            Generate Dummy Data
+            Refresh Data
           </button>
         </div>
 

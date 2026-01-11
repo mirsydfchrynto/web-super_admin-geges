@@ -4,11 +4,10 @@ import { X, CheckCircle, XCircle, AlertCircle, Loader2, FileText, Download, Exte
 import { Tenant } from '../types';
 import { approveTenantRegistration, rejectTenantRegistration, approveRefund } from '../services/provisioningService';
 import { doc, getDoc } from 'firebase/firestore';
-import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import app, { db } from '../lib/firebase';
+import { db } from '../lib/firebase';
 import toast from 'react-hot-toast';
 import { useTranslation } from '../hooks/useTranslation';
-import { getDisplayImageUrl } from '../lib/utils';
+import { getDisplayImageUrl, fileToBase64 } from '../lib/utils';
 
 interface ApprovalModalProps {
   tenant: Tenant;
@@ -121,17 +120,14 @@ export const ApprovalModal: React.FC<ApprovalModalProps> = ({ tenant, onClose, o
     }
 
     setProcessing(true);
-    const toastId = toast.loading("Uploading proof & processing refund...");
+    const toastId = toast.loading("Processing refund data...");
 
     try {
-      // 1. Upload Proof
-      const storage = getStorage(app);
-      const storageRef = ref(storage, `refunds/${tenant.id}_${Date.now()}`);
-      await uploadBytes(storageRef, refundProofFile);
-      const downloadUrl = await getDownloadURL(storageRef);
+      // 1. Convert File to Base64 (No Firebase Storage allowed)
+      const base64Data = await fileToBase64(refundProofFile);
 
-      // 2. Call Service
-      await approveRefund(tenant, downloadUrl, refundNote);
+      // 2. Call Service with Base64 string
+      await approveRefund(tenant, base64Data, refundNote);
       
       toast.success("Refund berhasil diproses.", { id: toastId });
       onRefresh();

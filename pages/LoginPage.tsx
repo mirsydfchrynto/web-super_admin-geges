@@ -22,9 +22,17 @@ export const LoginPage: React.FC = () => {
     setIsSubmitting(true);
     try {
       const userCredential = await auth.signInWithEmailAndPassword(data.email, data.password);
-      const uid = userCredential.user?.uid;
-      if (!uid) throw new Error("User ID not found.");
+      const user = userCredential.user;
+      
+      if (!user || !user.email) throw new Error("Authentication failed.");
 
+      // 1. Strict Email Whitelist Enforecement
+      if (user.email !== 'admin@geges.com') {
+        await auth.signOut();
+        throw new Error("Access Restricted: Only admin@geges.com can login.");
+      }
+
+      const uid = user.uid;
       const userDocRef = doc(db, 'users', uid);
       const userDocSnap = await getDoc(userDocRef);
 
