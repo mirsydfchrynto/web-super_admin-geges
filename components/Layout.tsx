@@ -30,12 +30,6 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
   const navigate = useNavigate();
   const location = useLocation();
 
-  useEffect(() => {
-    if (user?.role === 'super_admin') {
-      dispatch(fetchRegistrations());
-    }
-  }, [dispatch, user]);
-
   const pendingCount = registrations.filter(r => 
     ['waiting_proof', 'payment_submitted', 'pending_payment'].includes(r.status)
   ).length;

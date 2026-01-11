@@ -58,7 +58,13 @@ export const fetchRegistrations = createAsyncThunk(
 const registrationsSlice = createSlice({
   name: 'registrations',
   initialState,
-  reducers: {},
+  reducers: {
+    setRegistrations: (state, action: PayloadAction<Tenant[]>) => {
+      state.items = action.payload;
+      state.lastUpdated = Date.now();
+      state.loading = false;
+    }
+  },
   extraReducers: (builder) => {
     builder
       .addCase(fetchRegistrations.pending, (state) => {
@@ -77,4 +83,5 @@ const registrationsSlice = createSlice({
   },
 });
 
+export const { setRegistrations } = registrationsSlice.actions;
 export default registrationsSlice.reducer;

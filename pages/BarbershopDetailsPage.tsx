@@ -181,6 +181,7 @@ export const BarbershopDetailsPage: React.FC = () => {
                           type="button"
                           onClick={() => setValue("imageUrl", "", { shouldDirty: true })}
                           className="absolute top-2 right-2 p-1 bg-black/50 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                          title="Remove Image"
                         >
                           <X size={16} />
                         </button>
@@ -199,16 +200,17 @@ export const BarbershopDetailsPage: React.FC = () => {
                       >
                         <Upload size={16} /> Upload Image
                       </button>
-                      <input 
-                        type="file" 
-                        ref={fileInputRef} 
-                        onChange={handleFileChange} 
-                        accept="image/*" 
-                        className="hidden" 
-                      />
-                    </div>
+                                            <input
+                                              type="file"
+                                              ref={fileInputRef}
+                                              onChange={handleFileChange}
+                                              title="Upload Barbershop Image"
+                                              aria-label="Upload Barbershop Image"
+                                              accept="image/*"
+                                              className="hidden"
+                                            />                    </div>
                     <p className="text-[10px] text-textSecondary uppercase tracking-widest">Or enter URL / Base64 manually:</p>
-                    <input {...register("imageUrl")} className={inputClass} placeholder="https://... or raw base64" />
+                    <input {...register("imageUrl")} className={inputClass} placeholder="Enter image URL or raw base64" aria-label="Image URL" title="Image URL" />
                   </div>
                 </div>
               </div>

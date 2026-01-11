@@ -158,7 +158,7 @@ export const approveTenantRegistration = async (tenant: Tenant) => {
     }
 
     if (error.code === 'auth/email-already-in-use') {
-      throw new Error(`Email ${tenant.owner_email} sudah terdaftar. Gunakan email lain.`);
+      throw new Error(`Email ${tenant.owner_email} sudah terdaftar di sistem Auth Firebase. Admin tidak dapat menghapus akun Auth user lain (batasan keamanan). Mohon hapus manual user tersebut di Firebase Console -> Authentication, atau minta user menghapus akunnya sendiri.`);
     }
     throw new Error(error.message || "Unknown provisioning error");
   } finally {
@@ -280,7 +280,7 @@ export const approveRefund = async (tenant: Tenant, refundProofUrl: string, admi
  * SCENARIO D: SUSPEND TENANT (Late Payment / Violation)
  */
 export const suspendTenant = async (tenant: Tenant, reason: string) => {
-  console.log("=== SUSPENDING TENANT ===", tenant.id);
+  console.log("=== SUSPENDING TENANT & ADMIN USER ===", tenant.id);
   
   const batch = writeBatch(db);
   const tenantRef = doc(db, 'tenants', tenant.id);
@@ -302,10 +302,19 @@ export const suspendTenant = async (tenant: Tenant, reason: string) => {
 
     batch.update(tenantRef, updates);
 
-    // Also deactivate the Shop if it exists
+    // 1. Deactivate Shop
     if (tenant.shop_id) {
        const shopRef = doc(db, 'barbershops', tenant.shop_id);
-       batch.update(shopRef, { isActive: false });
+       batch.update(shopRef, { isActive: false, isOpen: false });
+    }
+
+    // 2. Suspend Admin User
+    // Try to find user by admin_uid from shop or owner_uid from tenant
+    let adminUid = tenant.owner_uid;
+    // We can verify this via the shop document if needed, but tenant.owner_uid is usually the admin
+    if (adminUid) {
+       const userRef = doc(db, 'users', adminUid);
+       batch.update(userRef, { isSuspended: true });
     }
 
     // Notification
@@ -347,6 +356,12 @@ export const deleteTenant = async (tenant: Tenant) => {
     if (tenant.shop_id) {
        const shopRef = doc(db, 'barbershops', tenant.shop_id);
        batch.delete(shopRef);
+    }
+
+    // NEW: Delete Admin User (Cascading)
+    if (tenant.owner_uid) {
+       const userRef = doc(db, 'users', tenant.owner_uid);
+       batch.delete(userRef);
     }
 
     await batch.commit();
@@ -398,7 +413,7 @@ export const deleteBarbershop = async (shopId: string) => {
     const barbermenSnap = await getDocs(barbermenQ);
     barbermenSnap.forEach((bDoc) => batch.delete(bDoc.ref));
 
-    // 5. Delete Owner User
+    // 5. Delete Owner User (Firestore Data Only - Auth remains)
     if (shopData.admin_uid) {
        const userRef = doc(db, 'users', shopData.admin_uid);
        batch.delete(userRef);
@@ -425,5 +440,83 @@ export const deleteUser = async (userId: string) => {
   } catch (error: any) {
     console.error("Delete User Error:", error);
     throw new Error(error.message || "Failed to delete user");
+  }
+};
+
+/**
+ * TOGGLE BARBERSHOP STATUS (Cascading Suspend/Activate)
+ */
+export const toggleBarbershopStatus = async (shopId: string, isActive: boolean) => {
+  console.log(`=== TOGGLING SHOP ${shopId} -> Active: ${isActive} ===`);
+  const batch = writeBatch(db);
+  
+  try {
+    const shopRef = doc(db, 'barbershops', shopId);
+    const shopSnap = await getDoc(shopRef);
+    if (!shopSnap.exists()) throw new Error("Shop not found");
+    const shopData = shopSnap.data() as Barbershop;
+
+    // 1. Update Shop
+    batch.update(shopRef, { 
+      isActive, 
+      isOpen: isActive ? shopData.isOpen : false 
+    });
+
+    // 2. Cascade to Admin User
+    if (shopData.admin_uid) {
+      const userRef = doc(db, 'users', shopData.admin_uid);
+      batch.update(userRef, { 
+         isSuspended: !isActive 
+      });
+    }
+
+    // 3. Cascade to Tenant (Sync Status)
+    const tenantsQ = query(collection(db, 'tenants'), where('shop_id', '==', shopId));
+    const tenantsSnap = await getDocs(tenantsQ);
+    tenantsSnap.forEach(tDoc => {
+       batch.update(tDoc.ref, { 
+          status: isActive ? 'active' : 'suspended' 
+       });
+    });
+
+    await batch.commit();
+    return { success: true };
+  } catch (error: any) {
+    console.error("Toggle Shop Error:", error);
+    throw new Error(error.message);
+  }
+};
+
+/**
+ * TOGGLE USER SUSPENSION (Cascading)
+ */
+export const toggleUserSuspension = async (userId: string, isSuspended: boolean) => {
+  console.log(`=== TOGGLING USER ${userId} -> Suspended: ${isSuspended} ===`);
+  const batch = writeBatch(db);
+  const userRef = doc(db, 'users', userId);
+  
+  try {
+    // 1. Update User
+    batch.update(userRef, { isSuspended });
+
+    // 2. Cascade to Shop (if owner)
+    const shopsQ = query(collection(db, 'barbershops'), where('admin_uid', '==', userId));
+    const shopsSnap = await getDocs(shopsQ);
+    
+    shopsSnap.forEach(shopDoc => {
+        batch.update(shopDoc.ref, { 
+           isActive: !isSuspended,
+           isOpen: !isSuspended ? (shopDoc.data().isOpen) : false
+        });
+        
+        // Note: We don't cascade to Tenant here deeply to keep it fast, 
+        // but the shop deactivation is the critical part.
+    });
+    
+    await batch.commit();
+    return { success: true };
+  } catch (error: any) {
+    console.error("Toggle User Error:", error);
+    throw new Error(error.message);
   }
 };

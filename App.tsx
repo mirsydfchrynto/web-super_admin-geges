@@ -17,6 +17,7 @@ import { RootState } from './store';
 import { doc, getDoc } from 'firebase/firestore';
 import { User } from './types';
 import { Loader2 } from 'lucide-react';
+import { useRealtimeRegistrations } from './hooks/useRealtimeRegistrations';
 
 const PrivateRoute = ({ children }: { children?: React.ReactNode }) => {
   const { isAuthenticated, loading } = useSelector((state: RootState) => state.auth);
@@ -34,6 +35,10 @@ const PrivateRoute = ({ children }: { children?: React.ReactNode }) => {
 
 const App: React.FC = () => {
   const dispatch = useDispatch();
+  const { user } = useSelector((state: RootState) => state.auth);
+
+  // Global Real-time Listener for Super Admin Notifications
+  useRealtimeRegistrations(user?.role === 'super_admin');
 
   useEffect(() => {
     // Using Compat Auth instance method

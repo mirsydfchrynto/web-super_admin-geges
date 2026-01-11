@@ -38,12 +38,44 @@ export const TenantsPage: React.FC = () => {
       // FETCH ALL - Safest way to ensure no data is hidden by missing indexes/fields
       const snapshot = await getDocs(collectionRef);
       
+      // ROBUST MAPPING & SHOW ALL (Mimic Flutter Logic)
       const data: BarbershopWithId[] = [];
       snapshot.forEach((doc) => {
-        const d = doc.data() as Barbershop;
-        if (!d.isDeleted) { // Filter out soft-deleted
-          data.push({ id: doc.id, ...d } as BarbershopWithId);
-        }
+        const raw = doc.data() as any;
+        
+        // Helper parse hour
+        const parseHour = (val: any, fallback: number) => {
+           if (typeof val === 'number') return val;
+           if (typeof val === 'string') return parseInt(val) || fallback;
+           return fallback;
+        };
+
+        const safeBarbershop: BarbershopWithId = {
+          id: doc.id,
+          name: raw.name || 'Nama Barbershop',
+          // Handle legacy typo
+          address: raw.address || raw.addres || 'Alamat Tidak Diketahui',
+          imageUrl: raw.imageUrl || 'https://cdn-icons-png.flaticon.com/512/706/706830.png',
+          // Respect existing value, default true for legacy
+          isActive: raw.isActive !== undefined ? raw.isActive : true, 
+          isOpen: raw.isOpen || false,
+          isDeleted: raw.isDeleted || false, // Show status in UI but don't hide row
+          
+          admin_uid: raw.admin_uid || '',
+          rating: raw.rating || 0,
+          gallery_urls: raw.gallery_urls || raw.galleryUrls || [],
+          services: raw.services || [],
+          facilities: raw.facilities || [],
+          open_hour: parseHour(raw.open_hour || raw.openHour, 9),
+          close_hour: parseHour(raw.close_hour || raw.closeHour, 21),
+          weekly_holidays: raw.weekly_holidays || raw.weeklyHolidays || [],
+          barber_selection_fee: raw.barber_selection_fee || raw.barberSelectionFee || 5000,
+          created_at: raw.created_at,
+          google_maps_url: raw.google_maps_url,
+          whatsapp_number: raw.whatsapp_number
+        };
+
+        data.push(safeBarbershop);
       });
 
       // CLIENT SIDE SORT (Robust against missing created_at)

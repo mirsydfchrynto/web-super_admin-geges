@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Layout } from '../components/Layout';
-import { collection, query, where, getCountFromServer, getDocs } from 'firebase/firestore';
+import { collection, query, where, onSnapshot } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { Users, Store, Clock, TrendingUp, ArrowRight, Activity, Calendar, Loader2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
@@ -11,44 +11,55 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 
 
 const ReviewAnalytics: React.FC = () => {
   const [data, setData] = useState([
-    { name: 'Positif (4-5★)', count: 0, color: '#4CAF50' },
-    { name: 'Negatif (1-2★)', count: 0, color: '#F44336' },
+    { name: 'Positif', count: 0, color: '#4CAF50' },
+    { name: 'Negatif', count: 0, color: '#F44336' },
+    { name: 'Netral', count: 0, color: '#FFC107' },
   ]);
   const [summary, setSummary] = useState({ total: 0, satisfaction: 0 });
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const fetchReviews = async () => {
-      try {
-        const reviewsColl = collection(db, "app_ratings");
-        const snapshot = await getDocs(reviewsColl);
+    const reviewsColl = collection(db, "app_ratings");
+    
+    const unsubscribe = onSnapshot(reviewsColl, (snapshot) => {
+      let positive = 0;
+      let negative = 0;
+      let neutral = 0;
+
+      snapshot.forEach(doc => {
+        const d = doc.data();
+        // Use AI Sentiment if available, fallback to rating
+        const sentiment = d.sentiment?.toLowerCase();
         
-        let positive = 0;
-        let negative = 0;
+        if (sentiment === 'positif') positive++;
+        else if (sentiment === 'negatif') negative++;
+        else if (sentiment === 'netral') neutral++;
+        else {
+           // Fallback if AI hasn't processed it yet
+           const rating = d.rating || 0;
+           if (rating >= 4) positive++;
+           else if (rating <= 2) negative++;
+           else neutral++;
+        }
+      });
 
-        snapshot.forEach(doc => {
-          const rating = doc.data().rating || 0;
-          // Strict binary classification: 4-5 is positive, 1-3 is negative (assuming neutral is removed)
-          if (rating >= 4) positive++;
-          else negative++;
-        });
+      const total = snapshot.size;
+      // Satisfaction = Positive / Total (excluding neutral? or Total including neutral? Standard is Total)
+      const satisfaction = total > 0 ? Math.round((positive / total) * 100) : 0;
 
-        const total = snapshot.size;
-        const satisfaction = total > 0 ? Math.round((positive / total) * 100) : 0;
+      setData([
+        { name: 'Positif', count: positive, color: '#4CAF50' },
+        { name: 'Negatif', count: negative, color: '#F44336' },
+        { name: 'Netral', count: neutral, color: '#FFC107' },
+      ]);
+      setSummary({ total, satisfaction });
+      setLoading(false);
+    }, (error) => {
+      console.error("Error listening to reviews:", error);
+      setLoading(false);
+    });
 
-        setData([
-          { name: 'Positif', count: positive, color: '#4CAF50' },
-          { name: 'Negatif', count: negative, color: '#F44336' },
-        ]);
-        setSummary({ total, satisfaction });
-      } catch (e) {
-        console.error("Error fetching reviews:", e);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchReviews();
+    return () => unsubscribe();
   }, []);
 
   return (
@@ -57,7 +68,7 @@ const ReviewAnalytics: React.FC = () => {
          <h3 className="text-white font-bold flex items-center gap-2">
             <Activity className="text-gold" size={20}/> Analisis Ulasan
          </h3>
-         <div className="bg-white/5 px-3 py-1 rounded-full text-[10px] text-gray-400">Real-time Data</div>
+         <div className="bg-white/5 px-3 py-1 rounded-full text-[10px] text-gray-400">Real-time</div>
       </div>
       
       <div className="flex-1 w-full min-h-[200px]">
@@ -131,7 +142,8 @@ const StatCard: React.FC<{
   </div>
 );
 
-export const DashboardPage: React.FC = () => {  const navigate = useNavigate();
+export const DashboardPage: React.FC = () => {  
+  const navigate = useNavigate();
   const { t, formatDate } = useTranslation();
   const [stats, setStats] = useState({
     activeTenants: 0,
@@ -144,98 +156,71 @@ export const DashboardPage: React.FC = () => {  const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const fetchStats = async () => {
-      setLoading(true);
-      try {
-        const tenantsColl = collection(db, "tenants");
-        const usersColl = collection(db, "users");
-        const barbershopsColl = collection(db, "barbershops");
+    setLoading(true);
 
-        // --- 1. TOTAL USERS (Optimized Server-Side Count) ---
-        // Uses getCountFromServer which is fast and cheap (meta-only)
-        // Checks for 'isDeleted' NOT equal to true (handling missing fields correctly needs an index or explicit query)
-        // Since Firestore != operator excludes missing fields, we will count ALL and subtract DELETED.
+    // 1. Real-time Users Count
+    const unsubscribeUsers = onSnapshot(collection(db, "users"), (snapshot) => {
+      const total = snapshot.size;
+      const deleted = snapshot.docs.filter(d => d.data().isDeleted === true).length;
+      setStats(prev => ({ ...prev, totalUsers: total - deleted }));
+    });
+
+    // 2. Real-time Tenants (Revenue, Active, Pending, Recent)
+    const unsubscribeTenants = onSnapshot(collection(db, "tenants"), (snapshot) => {
+      let activeCount = 0;
+      let calculatedRevenue = 0;
+      let successfulRegistrations = 0;
+      let pendingCount = 0;
+      const recents: Tenant[] = [];
+
+      snapshot.forEach(doc => {
+        const data = doc.data() as Tenant;
+        const status = (data.status as string) || '';
         
-        const totalUsersSnapshot = await getCountFromServer(usersColl);
-        const totalCount = totalUsersSnapshot.data().count;
+        // Skip soft-deleted
+        if (status === 'deleted') return;
 
-        const deletedUsersSnapshot = await getCountFromServer(query(usersColl, where('isDeleted', '==', true)));
-        const deletedCount = deletedUsersSnapshot.data().count;
-        
-        const userCount = totalCount - deletedCount;
-
-        // --- 2. ACTIVE BARBERSHOPS & ACTIVE TENANTS (Revenue) ---
-        // Fetch active tenants (Approved & Verified)
-        const qActive = query(tenantsColl, where('status', '==', 'active'));
-        const revenueSnap = await getDocs(qActive);
-        
-        let activeTenantsCount = 0;
-        let calculatedRevenue = 0;
-        let successfulRegistrations = 0;
-
-        revenueSnap.forEach(doc => {
-          const data = doc.data() as Tenant;
-          // Filter soft-deleted manually
-          if (data.status === 'deleted') return; 
-          // Note: tenants might not have isDeleted flag if created before feature, 
-          // checking 'status' === 'deleted' is safer for tenants as we updated that flow.
-          
-          activeTenantsCount++;
-          
-          // Priority: Invoice Amount -> Registration Fee -> 0
+        // Active & Revenue Stats
+        if (status === 'active') {
+          activeCount++;
           const amount = data.invoice?.amount || data.registration_fee || 0;
           calculatedRevenue += amount;
           successfulRegistrations++;
-        });
+        }
 
-        // --- 3. PENDING APPROVALS & RECENT ACTIVITY ---
-        // Statuses requiring admin attention
-        const qPendingCandidates = query(
-          tenantsColl, 
-          where('status', 'in', ['waiting_proof', 'payment_submitted', 'pending_payment', 'awaiting_payment', 'cancellation_requested'])
-        );
-        const pendingSnap = await getDocs(qPendingCandidates);
-        
-        let pendingCount = 0;
-        const recents: Tenant[] = [];
-
-        pendingSnap.forEach(doc => {
-          const data = doc.data() as Tenant;
-          if (data.status === 'deleted') return; // Safety check
-
-          const tenantWithId = { ...data, id: doc.id };
+        // Pending Stats & Recent List (STRICT FILTER: ONLY NEEDS REVIEW)
+        if (['waiting_proof', 'payment_submitted', 'pending_payment', 'awaiting_payment', 'cancellation_requested'].includes(status)) {
           pendingCount++;
-          recents.push(tenantWithId);
-        });
+          recents.push({ ...data, id: doc.id });
+        }
+      });
 
-        // Sort by most recent
-        recents.sort((a, b) => {
-           const timeA = a.created_at?.seconds ? a.created_at.seconds : (a.created_at || 0);
-           const timeB = b.created_at?.seconds ? b.created_at.seconds : (b.created_at || 0);
-           return timeB - timeA;
-        });
-        setRecentTenants(recents.slice(0, 5));
+      // Sort by Most Recent
+      recents.sort((a, b) => {
+         const timeA = a.created_at?.seconds ? a.created_at.seconds : (a.created_at || 0);
+         const timeB = b.created_at?.seconds ? b.created_at.seconds : (b.created_at || 0);
+         return timeB - timeA;
+      });
 
-        // Format Revenue
-        const revenueString = new Intl.NumberFormat('id-ID', {
-          style: 'currency', currency: 'IDR', minimumFractionDigits: 0, maximumFractionDigits: 0
-        }).format(calculatedRevenue);
+      const revenueString = new Intl.NumberFormat('id-ID', {
+        style: 'currency', currency: 'IDR', minimumFractionDigits: 0, maximumFractionDigits: 0
+      }).format(calculatedRevenue);
 
-        setStats({
-          activeTenants: activeTenantsCount,
-          waitingApproval: pendingCount,
-          totalUsers: userCount,
-          revenue: revenueString,
-          transactions: successfulRegistrations
-        });
+      setStats(prev => ({
+        ...prev,
+        activeTenants: activeCount,
+        waitingApproval: pendingCount,
+        revenue: revenueString,
+        transactions: successfulRegistrations
+      }));
+      setRecentTenants(recents.slice(0, 5));
+      setLoading(false);
+    });
 
-      } catch (error) {
-        console.error("Error fetching stats:", error);
-      } finally {
-        setLoading(false);
-      }
+    return () => {
+      unsubscribeUsers();
+      unsubscribeTenants();
     };
-    fetchStats();
   }, []);
 
   return (
@@ -247,7 +232,7 @@ export const DashboardPage: React.FC = () => {  const navigate = useNavigate();
         </div>
         <div className="flex items-center gap-2 text-xs font-bold text-gold bg-gold/10 px-4 py-2 rounded-full border border-gold/20">
           <div className="w-2 h-2 rounded-full bg-gold animate-pulse"></div>
-          {t('common.system_online') }
+          Realtime
         </div>
       </div>
 
@@ -333,9 +318,9 @@ export const DashboardPage: React.FC = () => {  const navigate = useNavigate();
                             ? 'bg-rose-500/10 text-rose-500 border border-rose-500/20'
                             : hasProof 
                               ? 'bg-gold/10 text-gold border border-gold/20' 
-                              : 'bg-danger/10 text-danger border border-danger/20'
+                              : 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20' // Changed to green/neutral for non-pending
                           }`}>
-                            {isRefundReq ? 'Refund Req' : (hasProof ? t('dashboard.ready_review') : t('dashboard.wait_payment'))}
+                            {isRefundReq ? 'Refund Req' : (hasProof ? t('dashboard.ready_review') : tenant.status.replace('_', ' '))}
                           </span>
                         </div>
                         <button 

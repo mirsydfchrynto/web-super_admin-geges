@@ -3,7 +3,7 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Layout } from '../components/Layout';
 import { collection, getDocs, doc, updateDoc, query, where, Timestamp } from 'firebase/firestore';
-import { deleteUser } from '../services/provisioningService';
+import { deleteUser, toggleUserSuspension } from '../services/provisioningService';
 import { auth, db } from '../lib/firebase';
 import { User } from '../types';
 import { 
@@ -21,7 +21,9 @@ import {
   Phone,
   Store,
   ExternalLink,
-  Trash2
+  Trash2,
+  Ban,
+  PlayCircle
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useTranslation } from '../hooks/useTranslation';
@@ -43,6 +45,7 @@ export const UsersPage: React.FC = () => {
   const [newRole, setNewRole] = useState<string>('');
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [suspendingId, setSuspendingId] = useState<string | null>(null);
 
   const navigate = useNavigate();
 
@@ -55,7 +58,8 @@ export const UsersPage: React.FC = () => {
       querySnapshot.forEach((doc) => {
         const u = doc.data() as User;
         if (!u.isDeleted) {
-          data.push({ id: doc.id, ...u } as UserWithId);
+          // Default isSuspended to false if missing
+          data.push({ id: doc.id, ...u, isSuspended: u.isSuspended || false } as UserWithId);
         }
       });
       
@@ -78,6 +82,28 @@ export const UsersPage: React.FC = () => {
   useEffect(() => {
     fetchUsers();
   }, []);
+
+  const handleToggleSuspend = async (user: UserWithId) => {
+     const isSuspending = !user.isSuspended;
+     const action = isSuspending ? "SUSPEND" : "ACTIVATE";
+     
+     if (window.confirm(`Are you sure you want to ${action} user '${user.name}'?`)) {
+        setSuspendingId(user.id);
+        const toastId = toast.loading(`${action}ing user...`);
+        try {
+           await toggleUserSuspension(user.id, isSuspending);
+           toast.success(`User ${action.toLowerCase()}d successfully.`, { id: toastId });
+           
+           setUsers(prev => prev.map(u => 
+              u.id === user.id ? { ...u, isSuspended: isSuspending } : u
+           ));
+        } catch (e: any) {
+           toast.error("Failed: " + e.message, { id: toastId });
+        } finally {
+           setSuspendingId(null);
+        }
+     }
+  };
 
   const handleEdit = (user: UserWithId) => {
     setEditingUser(user);
@@ -222,7 +248,7 @@ export const UsersPage: React.FC = () => {
                 </tr>
               ) : (
                 filteredUsers.map((user) => (
-                  <tr key={user.id} className="hover:bg-white/5 transition-colors group">
+                  <tr key={user.id} className={`transition-colors group ${user.isSuspended ? 'bg-red-900/10 border-l-2 border-l-red-500' : 'hover:bg-white/5'}`}>
                     <td className="p-4">
                       <div className="flex items-center gap-3">
                         <div className="w-10 h-10 rounded-full bg-gray-700 overflow-hidden flex items-center justify-center flex-shrink-0 border border-gray-600">
@@ -233,37 +259,45 @@ export const UsersPage: React.FC = () => {
                           )}
                         </div>
                         <div>
-                          <div className="font-medium text-white">{user.name || "Unnamed User"}</div>
+                          <div className={`font-medium ${user.isSuspended ? 'text-red-400' : 'text-white'}`}>{user.name || "Unnamed User"}</div>
                           <div className="text-xs text-gray-500 font-mono">ID: {user.id.substring(0, 8)}...</div>
                         </div>
                       </div>
                     </td>
                     <td className="p-4">
-                      {user.role === 'super_admin' && (
-                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-purple-500/20 text-purple-400 border border-purple-500/30">
-                          <Shield size={10} /> SUPER ADMIN
-                        </span>
-                      )}
-                      {user.role === 'admin_owner' && (
-                        <div className="flex flex-col items-start gap-1">
-                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-blue-500/20 text-blue-400 border border-blue-500/30">
-                            <Scissors size={10} /> OWNER
+                      <div className="flex flex-col items-start gap-1">
+                        {user.isSuspended && (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-red-500 text-white shadow-sm animate-pulse">
+                            <Ban size={8} /> SUSPENDED
                           </span>
-                          {user.barbershop_id && (
-                             <button 
-                               onClick={() => navigate(`/barbershops/${user.barbershop_id}`)}
-                               className="text-[10px] text-gray-400 hover:text-blue-400 flex items-center gap-1 transition-colors"
-                             >
-                                <Store size={10}/> {t('common.view')} Shop <ExternalLink size={8}/>
-                             </button>
-                          )}
-                        </div>
-                      )}
-                      {user.role === 'customer' && (
-                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-500/20 text-gray-400 border border-gray-500/30">
-                          CUSTOMER
-                        </span>
-                      )}
+                        )}
+                        
+                        {user.role === 'super_admin' && (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-purple-500/20 text-purple-400 border border-purple-500/30">
+                            <Shield size={10} /> SUPER ADMIN
+                          </span>
+                        )}
+                        {user.role === 'admin_owner' && (
+                          <div className="flex flex-col items-start gap-1">
+                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-blue-500/20 text-blue-400 border border-blue-500/30">
+                              <Scissors size={10} /> OWNER
+                            </span>
+                            {user.barbershop_id && (
+                               <button 
+                                 onClick={() => navigate(`/barbershops/${user.barbershop_id}`)}
+                                 className="text-[10px] text-gray-400 hover:text-blue-400 flex items-center gap-1 transition-colors"
+                               >
+                                  <Store size={10}/> {t('common.view')} Shop <ExternalLink size={8}/>
+                               </button>
+                            )}
+                          </div>
+                        )}
+                        {user.role === 'customer' && (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-500/20 text-gray-400 border border-gray-500/30">
+                            CUSTOMER
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td className="p-4">
                       <div className="text-sm text-gray-300 flex items-center gap-2">
@@ -289,6 +323,19 @@ export const UsersPage: React.FC = () => {
                           className="p-2 bg-white/5 hover:bg-white/10 text-gray-400 hover:text-orange-400 rounded-lg transition-colors border border-transparent hover:border-orange-500/30"
                         >
                           <KeyRound size={16} />
+                        </button>
+                        
+                        <button 
+                           onClick={() => handleToggleSuspend(user)}
+                           disabled={suspendingId === user.id}
+                           title={user.isSuspended ? "Activate User" : "Suspend User"}
+                           className={`p-2 rounded-lg transition-colors border ${
+                              user.isSuspended 
+                                ? 'bg-green-500/10 hover:bg-green-500/20 text-green-500 border-green-500/20' 
+                                : 'bg-amber-500/10 hover:bg-amber-500/20 text-amber-500 border-amber-500/20'
+                           }`}
+                        >
+                           {suspendingId === user.id ? <Loader2 size={16} className="animate-spin"/> : (user.isSuspended ? <PlayCircle size={16}/> : <Ban size={16}/>)}
                         </button>
                         <button 
                           onClick={() => handleEdit(user)}
@@ -316,16 +363,29 @@ export const UsersPage: React.FC = () => {
 
       {/* Edit User Modal */}
       {editingUser && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-[#0f172a] border border-glassBorder w-full max-w-md rounded-2xl shadow-2xl p-6 relative">
-            <h2 className="text-xl font-bold text-white mb-1">{t('users.modal_title')}</h2>
-            <p className="text-gray-400 text-sm mb-6">{t('users.modal_desc')} <span className="text-white font-medium">{editingUser.name}</span></p>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          {/* Backdrop */}
+          <div 
+            className="absolute inset-0 bg-black/80 backdrop-blur-sm transition-opacity" 
+            onClick={() => setEditingUser(null)}
+          />
+          
+          {/* Modal Content */}
+          <div className="bg-cardBg/90 backdrop-blur-xl border border-glassBorder w-full max-w-md rounded-2xl shadow-2xl p-8 relative z-10 animate-in fade-in zoom-in-95 duration-200">
+            <h2 className="text-2xl font-bold text-white mb-2">{t('users.modal_title')}</h2>
+            <p className="text-gray-400 text-sm mb-8 leading-relaxed">
+              {t('users.modal_desc')} <span className="text-white font-bold">{editingUser.name}</span>
+            </p>
             
-            <div className="space-y-4">
+            <div className="space-y-6">
                <div>
-                  <label className="block text-xs font-bold text-gray-500 uppercase mb-2">System Role</label>
-                  <div className="space-y-2">
-                    <label className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-all ${newRole === 'super_admin' ? 'bg-purple-500/20 border-purple-500 text-white' : 'bg-black/20 border-glassBorder text-gray-400 hover:bg-white/5'}`}>
+                  <label className="block text-xs font-bold text-gold uppercase tracking-widest mb-3">System Role</label>
+                  <div className="space-y-3">
+                    <label className={`flex items-center gap-4 p-4 rounded-xl border cursor-pointer transition-all duration-300 group ${
+                      newRole === 'super_admin' 
+                      ? 'bg-purple-500/10 border-purple-500/50 shadow-[0_0_15px_rgba(168,85,247,0.15)]' 
+                      : 'bg-black/20 border-white/5 hover:bg-white/5 hover:border-white/10'
+                    }`}>
                       <input 
                         type="radio" 
                         name="role" 
@@ -334,14 +394,20 @@ export const UsersPage: React.FC = () => {
                         onChange={(e) => setNewRole(e.target.value)}
                         className="hidden"
                       />
-                      <Shield size={20} className={newRole === 'super_admin' ? 'text-purple-400' : 'text-gray-500'} />
+                      <div className={`p-2 rounded-lg ${newRole === 'super_admin' ? 'bg-purple-500 text-white' : 'bg-gray-800 text-gray-500'}`}>
+                         <Shield size={20} />
+                      </div>
                       <div>
-                        <div className="font-bold text-sm">{t('users.role_super')}</div>
-                        <div className="text-xs opacity-70">{t('users.role_desc_super')}</div>
+                        <div className={`font-bold text-sm ${newRole === 'super_admin' ? 'text-white' : 'text-gray-400 group-hover:text-gray-200'}`}>{t('users.role_super')}</div>
+                        <div className="text-xs text-gray-500 mt-0.5">{t('users.role_desc_super')}</div>
                       </div>
                     </label>
 
-                    <label className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-all ${newRole === 'admin_owner' ? 'bg-blue-500/20 border-blue-500 text-white' : 'bg-black/20 border-glassBorder text-gray-400 hover:bg-white/5'}`}>
+                    <label className={`flex items-center gap-4 p-4 rounded-xl border cursor-pointer transition-all duration-300 group ${
+                      newRole === 'admin_owner' 
+                      ? 'bg-blue-500/10 border-blue-500/50 shadow-[0_0_15px_rgba(59,130,246,0.15)]' 
+                      : 'bg-black/20 border-white/5 hover:bg-white/5 hover:border-white/10'
+                    }`}>
                       <input 
                         type="radio" 
                         name="role" 
@@ -350,14 +416,20 @@ export const UsersPage: React.FC = () => {
                         onChange={(e) => setNewRole(e.target.value)}
                         className="hidden"
                       />
-                      <Scissors size={20} className={newRole === 'admin_owner' ? 'text-blue-400' : 'text-gray-500'} />
+                      <div className={`p-2 rounded-lg ${newRole === 'admin_owner' ? 'bg-blue-500 text-white' : 'bg-gray-800 text-gray-500'}`}>
+                         <Scissors size={20} />
+                      </div>
                       <div>
-                        <div className="font-bold text-sm">{t('users.role_owner')}</div>
-                        <div className="text-xs opacity-70">{t('users.role_desc_owner')}</div>
+                        <div className={`font-bold text-sm ${newRole === 'admin_owner' ? 'text-white' : 'text-gray-400 group-hover:text-gray-200'}`}>{t('users.role_owner')}</div>
+                        <div className="text-xs text-gray-500 mt-0.5">{t('users.role_desc_owner')}</div>
                       </div>
                     </label>
 
-                    <label className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-all ${newRole === 'customer' ? 'bg-gray-500/20 border-gray-500 text-white' : 'bg-black/20 border-glassBorder text-gray-400 hover:bg-white/5'}`}>
+                    <label className={`flex items-center gap-4 p-4 rounded-xl border cursor-pointer transition-all duration-300 group ${
+                      newRole === 'customer' 
+                      ? 'bg-emerald-500/10 border-emerald-500/50 shadow-[0_0_15px_rgba(16,185,129,0.15)]' 
+                      : 'bg-black/20 border-white/5 hover:bg-white/5 hover:border-white/10'
+                    }`}>
                       <input 
                         type="radio" 
                         name="role" 
@@ -366,33 +438,35 @@ export const UsersPage: React.FC = () => {
                         onChange={(e) => setNewRole(e.target.value)}
                         className="hidden"
                       />
-                      <UserIcon size={20} className={newRole === 'customer' ? 'text-gray-300' : 'text-gray-500'} />
+                      <div className={`p-2 rounded-lg ${newRole === 'customer' ? 'bg-emerald-500 text-white' : 'bg-gray-800 text-gray-500'}`}>
+                         <UserIcon size={20} />
+                      </div>
                       <div>
-                        <div className="font-bold text-sm">{t('users.role_customer')}</div>
-                        <div className="text-xs opacity-70">{t('users.role_desc_customer')}</div>
+                        <div className={`font-bold text-sm ${newRole === 'customer' ? 'text-white' : 'text-gray-400 group-hover:text-gray-200'}`}>{t('users.role_customer')}</div>
+                        <div className="text-xs text-gray-500 mt-0.5">{t('users.role_desc_customer')}</div>
                       </div>
                     </label>
                   </div>
                </div>
             </div>
 
-            <div className="flex gap-3 mt-8">
+            <div className="flex gap-4 mt-8 pt-6 border-t border-white/10">
               <button 
                 onClick={() => setEditingUser(null)}
-                className="flex-1 py-2 rounded-lg text-sm font-medium text-gray-400 hover:text-white hover:bg-white/5 transition-colors"
+                className="flex-1 py-3 rounded-xl text-sm font-bold text-gray-400 hover:text-white hover:bg-white/5 border border-transparent hover:border-white/10 transition-all"
               >
                 {t('common.cancel')}
               </button>
               <button 
                 onClick={handleSaveRole}
                 disabled={saving || newRole === editingUser.role}
-                className={`flex-1 py-2 rounded-lg text-sm font-bold flex items-center justify-center gap-2 transition-all ${
+                className={`flex-1 py-3 rounded-xl text-sm font-bold flex items-center justify-center gap-2 transition-all shadow-lg ${
                   saving || newRole === editingUser.role 
-                   ? 'bg-gray-700 text-gray-500 cursor-not-allowed'
-                   : 'bg-blue-600 hover:bg-blue-500 text-white shadow-lg'
+                   ? 'bg-gray-800 text-gray-500 cursor-not-allowed'
+                   : 'bg-gold hover:bg-goldHover text-black hover:scale-[1.02]'
                 }`}
               >
-                {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
+                {saving ? <Loader2 size={18} className="animate-spin" /> : <Save size={18} />}
                 {t('common.save')}
               </button>
             </div>

@@ -31,7 +31,7 @@ export interface Tenant {
   owner_phone?: string;
   owner_uid: string;
   address?: string;
-  status: 'draft' | 'awaiting_payment' | 'waiting_proof' | 'payment_submitted' | 'active' | 'rejected' | 'cancelled' | 'cancellation_requested';
+  status: 'draft' | 'awaiting_payment' | 'waiting_proof' | 'payment_submitted' | 'active' | 'rejected' | 'cancelled' | 'cancellation_requested' | 'deleted';
   rejection_reason?: string;
   
   // Documents
@@ -98,6 +98,7 @@ export interface User {
   favorite_barbershops?: string[];
   email?: string;
   isDeleted?: boolean;
+  isSuspended?: boolean;
   created_at?: any;
 }
 
