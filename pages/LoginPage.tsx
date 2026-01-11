@@ -107,13 +107,14 @@ export const LoginPage: React.FC = () => {
 
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-6 relative z-10">
           <div className="space-y-1">
-            <label className="block text-xs font-semibold text-textSecondary ml-4 uppercase tracking-wider">{t('login.email')}</label>
+            <label htmlFor="email" className="block text-xs font-semibold text-textSecondary ml-4 uppercase tracking-wider">{t('login.email')}</label>
             <div className="relative group/input">
               <div className="absolute inset-y-0 left-0 pl-5 flex items-center pointer-events-none">
                 <Mail className="h-5 w-5 text-gray-500 group-focus-within/input:text-gold transition-colors" />
               </div>
               <input
                 {...register('email', { required: true })}
+                id="email"
                 type="email"
                 className="w-full bg-darkBg border border-transparent text-white placeholder-gray-600 text-sm rounded-3xl focus:ring-1 focus:ring-gold/50 focus:border-gold/50 block w-full pl-12 p-4 transition-all duration-300 shadow-inner shadow-black/50"
                 placeholder="admin@gegesbarber.com"
@@ -122,13 +123,14 @@ export const LoginPage: React.FC = () => {
           </div>
           
           <div className="space-y-1">
-            <label className="block text-xs font-semibold text-textSecondary ml-4 uppercase tracking-wider">{t('login.password')}</label>
+            <label htmlFor="password" className="block text-xs font-semibold text-textSecondary ml-4 uppercase tracking-wider">{t('login.password')}</label>
             <div className="relative group/input">
               <div className="absolute inset-y-0 left-0 pl-5 flex items-center pointer-events-none">
                 <Lock className="h-5 w-5 text-gray-500 group-focus-within/input:text-gold transition-colors" />
               </div>
               <input
                 {...register('password', { required: true })}
+                id="password"
                 type="password"
                 className="w-full bg-darkBg border border-transparent text-white placeholder-gray-600 text-sm rounded-3xl focus:ring-1 focus:ring-gold/50 focus:border-gold/50 block w-full pl-12 p-4 transition-all duration-300 shadow-inner shadow-black/50"
                 placeholder="••••••••"

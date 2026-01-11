@@ -90,6 +90,7 @@ export const InboxPage: React.FC = () => {
               <input 
                 type="text" 
                 placeholder="Search tenant, email..." 
+                aria-label="Search tenant or email"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="w-full md:w-72 bg-cardBg/50 border border-glassBorder rounded-xl pl-10 pr-4 py-2.5 text-sm text-white focus:border-gold/50 focus:bg-cardBg outline-none transition-all"

@@ -213,6 +213,7 @@ export const UsersPage: React.FC = () => {
             <input 
               type="text" 
               placeholder={t('common.search')} 
+              aria-label={t('common.search')}
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="w-full sm:w-64 bg-black/20 border border-white/5 rounded-lg pl-10 pr-4 py-2 text-sm text-white focus:outline-none focus:border-gold hover:bg-black/40"

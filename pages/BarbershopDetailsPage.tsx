@@ -112,20 +112,20 @@ export const BarbershopDetailsPage: React.FC = () => {
               </h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="col-span-2">
-                  <label className={labelClass}>{t('tenants.table_shop')}</label>
-                  <input {...register("name", { required: true })} className={inputClass} />
+                  <label htmlFor="shopName" className={labelClass}>{t('tenants.table_shop')}</label>
+                  <input id="shopName" {...register("name", { required: true })} className={inputClass} />
                 </div>
                 <div className="col-span-2">
-                  <label className={labelClass}>{t('tenants.table_address')}</label>
-                  <textarea {...register("address", { required: true })} rows={3} className={`${inputClass} resize-none rounded-3xl`} />
+                  <label htmlFor="shopAddress" className={labelClass}>{t('tenants.table_address')}</label>
+                  <textarea id="shopAddress" {...register("address", { required: true })} rows={3} className={`${inputClass} resize-none rounded-3xl`} />
                 </div>
                 <div>
-                  <label className={labelClass}>WhatsApp</label>
-                  <input {...register("whatsapp_number")} placeholder="628..." className={inputClass} />
+                  <label htmlFor="whatsapp" className={labelClass}>WhatsApp</label>
+                  <input id="whatsapp" {...register("whatsapp_number")} placeholder="628..." className={inputClass} />
                 </div>
                 <div>
-                  <label className={labelClass}>Maps URL</label>
-                  <input {...register("google_maps_url")} className={inputClass} />
+                  <label htmlFor="mapsUrl" className={labelClass}>Maps URL</label>
+                  <input id="mapsUrl" {...register("google_maps_url")} className={inputClass} />
                 </div>
               </div>
             </div>
@@ -143,24 +143,24 @@ export const BarbershopDetailsPage: React.FC = () => {
                        </h4>
                        <p className="text-xs text-textSecondary mt-1">Manual override for opening status.</p>
                     </div>
-                    <label className="relative inline-flex items-center cursor-pointer">
-                      <input type="checkbox" {...register("isOpen")} className="sr-only peer" />
+                    <label htmlFor="isOpen" className="relative inline-flex items-center cursor-pointer">
+                      <input id="isOpen" type="checkbox" {...register("isOpen")} className="sr-only peer" />
                       <div className="w-14 h-7 bg-black peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-6 after:w-6 after:transition-all peer-checked:bg-success"></div>
                     </label>
                  </div>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <div>
-                  <label className={labelClass}>Open (24h)</label>
-                  <input type="number" {...register("open_hour")} className={inputClass} />
+                  <label htmlFor="openHour" className={labelClass}>Open (24h)</label>
+                  <input id="openHour" type="number" {...register("open_hour")} className={inputClass} />
                 </div>
                 <div>
-                  <label className={labelClass}>Close (24h)</label>
-                  <input type="number" {...register("close_hour")} className={inputClass} />
+                  <label htmlFor="closeHour" className={labelClass}>Close (24h)</label>
+                  <input id="closeHour" type="number" {...register("close_hour")} className={inputClass} />
                 </div>
                 <div>
-                  <label className={labelClass}>Fee (Rp)</label>
-                  <input type="number" {...register("barber_selection_fee")} className={inputClass} />
+                  <label htmlFor="selectionFee" className={labelClass}>Fee (Rp)</label>
+                  <input id="selectionFee" type="number" {...register("barber_selection_fee")} className={inputClass} />
                 </div>
               </div>
             </div>
@@ -171,7 +171,7 @@ export const BarbershopDetailsPage: React.FC = () => {
                 <ImageIcon size={18} className="text-gold" /> Branding
               </h3>
               <div className="space-y-4">
-                <label className={labelClass}>Shop Image</label>
+                <label htmlFor="imageUrl" className={labelClass}>Shop Image</label>
                 <div className="flex flex-col md:flex-row gap-6 items-start">
                   <div className="w-full md:w-1/3 aspect-square rounded-2xl bg-cardBg border border-glassBorder overflow-hidden flex items-center justify-center group relative">
                     {imageUrlValue ? (
@@ -210,7 +210,7 @@ export const BarbershopDetailsPage: React.FC = () => {
                                               className="hidden"
                                             />                    </div>
                     <p className="text-[10px] text-textSecondary uppercase tracking-widest">Or enter URL / Base64 manually:</p>
-                    <input {...register("imageUrl")} className={inputClass} placeholder="Enter image URL or raw base64" aria-label="Image URL" title="Image URL" />
+                    <input id="imageUrl" {...register("imageUrl")} className={inputClass} placeholder="Enter image URL or raw base64" aria-label="Image URL" title="Image URL" />
                   </div>
                 </div>
               </div>

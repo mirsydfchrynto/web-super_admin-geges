@@ -306,9 +306,10 @@ export const ApprovalModal: React.FC<ApprovalModalProps> = ({ tenant, onClose, o
                       
                       <div className="space-y-5">
                          <div>
-                            <label className="text-[9px] text-gray-500 uppercase font-bold tracking-widest block mb-2">Proof of Transfer</label>
+                            <label htmlFor="refundProof" className="text-[9px] text-gray-500 uppercase font-bold tracking-widest block mb-2">Proof of Transfer</label>
                             <div className="relative group">
                                <input 
+                                 id="refundProof"
                                  type="file" 
                                  accept="image/*"
                                  onChange={(e) => e.target.files && setRefundProofFile(e.target.files[0])}
@@ -317,8 +318,9 @@ export const ApprovalModal: React.FC<ApprovalModalProps> = ({ tenant, onClose, o
                             </div>
                          </div>
                          <div>
-                            <label className="text-[9px] text-gray-500 uppercase font-bold tracking-widest block mb-2">Internal Note</label>
+                            <label htmlFor="refundNote" className="text-[9px] text-gray-500 uppercase font-bold tracking-widest block mb-2">Internal Note</label>
                             <textarea
+                              id="refundNote"
                               value={refundNote}
                               onChange={(e) => setRefundNote(e.target.value)}
                               placeholder="Describe refund details..."
@@ -339,7 +341,9 @@ export const ApprovalModal: React.FC<ApprovalModalProps> = ({ tenant, onClose, o
                 ) : isRejecting ? (
                   <div className="bg-danger/5 border border-danger/20 rounded-2xl p-6 animate-in slide-in-from-right-4 duration-500">
                      <h3 className="text-sm font-bold text-danger mb-4 flex items-center gap-2"><XCircle size={16}/> Decline Application</h3>
+                     <label htmlFor="rejectionReason" className="text-[9px] text-gray-500 uppercase font-bold tracking-widest block mb-2">Rejection Reason</label>
                      <textarea
+                       id="rejectionReason"
                        value={rejectionReason}
                        onChange={(e) => setRejectionReason(e.target.value)}
                        placeholder="Provide a clear reason for rejection..."

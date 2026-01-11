@@ -1,14 +1,13 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { Layout } from '../components/Layout';
-import { collection, getDocs, doc, updateDoc, query, limit, orderBy, startAfter, where, QueryDocumentSnapshot, DocumentData, startAt, endAt } from 'firebase/firestore';
+import { collection, getDocs } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { toggleBarbershopStatus } from '../services/provisioningService';
 import { Barbershop } from '../types';
-import { Search, MapPin, Store, RefreshCcw, Info, Loader2, ArrowDown } from 'lucide-react';
+import { Search, MapPin, Store, RefreshCcw, Info, Loader2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from '../hooks/useTranslation';
-import { APP_CONFIG } from '../lib/constants';
 import { getDisplayImageUrl } from '../lib/utils';
 
 interface BarbershopWithId extends Barbershop { id: string; }
@@ -16,10 +15,7 @@ interface BarbershopWithId extends Barbershop { id: string; }
 export const TenantsPage: React.FC = () => {
   const [tenants, setTenants] = useState<BarbershopWithId[]>([]);
   const [loading, setLoading] = useState(false);
-  const [loadingMore, setLoadingMore] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
-  const [lastDoc, setLastDoc] = useState<QueryDocumentSnapshot<DocumentData> | null>(null);
-  const [hasMore, setHasMore] = useState(true);
   const [togglingId, setTogglingId] = useState<string | null>(null);
   
   const navigate = useNavigate();
@@ -28,10 +24,7 @@ export const TenantsPage: React.FC = () => {
   // Mode: 'browse' (default, sorted by created_at) or 'search' (sorted by name)
   const isSearchMode = searchTerm.trim().length > 0;
 
-  const fetchTenants = useCallback(async (isLoadMore = false) => {
-    // RESET: We use client-side logic for safety now
-    if (isLoadMore) return; 
-    
+  const fetchTenants = useCallback(async () => {
     setLoading(true);
     
     try {
@@ -93,8 +86,6 @@ export const TenantsPage: React.FC = () => {
          });
          setTenants(data);
       }
-      
-      setHasMore(false); // No pagination for now (fetch all)
 
     } catch (error) {
       console.error("Fetch Error:", error);
@@ -107,12 +98,10 @@ export const TenantsPage: React.FC = () => {
   // Debounce Search
   useEffect(() => {
     const timer = setTimeout(() => {
-      // Reset pagination on search change
-      setLastDoc(null);
-      fetchTenants(false);
+      fetchTenants();
     }, 500);
     return () => clearTimeout(timer);
-  }, [searchTerm]); // Don't include fetchTenants to avoid loops, useEffect handles trigger
+  }, [searchTerm, fetchTenants]);
 
   const handleToggleActive = async (id: string, currentActiveState: boolean, name: string) => {
     setTogglingId(id);
@@ -149,13 +138,14 @@ export const TenantsPage: React.FC = () => {
             <input 
               type="text" 
               placeholder={t('common.search') + " (Server-Side)..."} 
+              aria-label={t('common.search')}
               value={searchTerm} 
               onChange={(e) => setSearchTerm(e.target.value)} 
               className="bg-black/20 border border-white/5 rounded-[20px] pl-10 pr-4 py-3 text-sm text-white focus:border-gold outline-none w-64 transition-all hover:bg-black/40" 
             />
           </div>
           <button 
-            onClick={() => { setLastDoc(null); fetchTenants(false); }} 
+            onClick={() => fetchTenants()} 
             aria-label="Refresh Data"
             className="p-3 bg-black/20 border border-white/5 rounded-[20px] text-textSecondary hover:text-white hover:bg-black/40"
           >
@@ -176,7 +166,7 @@ export const TenantsPage: React.FC = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-glassBorder/50">
-              {loading && !loadingMore && tenants.length === 0 ? (
+              {loading && tenants.length === 0 ? (
                  <tr><td colSpan={4} className="p-8 text-center text-textSecondary"><Loader2 className="animate-spin mx-auto mb-2" />Loading Data...</td></tr>
               ) : tenants.length === 0 ? (
                  <tr><td colSpan={4} className="p-8 text-center text-textSecondary">{t('dashboard.no_data')}</td></tr>
@@ -220,19 +210,14 @@ export const TenantsPage: React.FC = () => {
         </div>
         
         {/* Load More Trigger */}
-        {!isSearchMode && hasMore && tenants.length > 0 && (
+        {!isSearchMode && tenants.length > 0 && (
           <div className="p-4 border-t border-glassBorder text-center">
-            <button 
-              onClick={() => fetchTenants(true)}
-              disabled={loadingMore}
-              className="inline-flex items-center gap-2 text-sm text-gold hover:text-goldHover disabled:opacity-50"
-            >
-              {loadingMore ? <Loader2 size={16} className="animate-spin" /> : <ArrowDown size={16} />}
-              {loadingMore ? 'Loading more...' : 'Load More'}
-            </button>
+             <span className="text-xs text-textSecondary">Showing all {tenants.length} tenants</span>
           </div>
         )}
       </div>
     </Layout>
   );
 };
+
+export default TenantsPage;

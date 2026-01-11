@@ -1,9 +1,31 @@
 import firebase from 'firebase/compat/app';
 import 'firebase/compat/auth';
-import { doc, writeBatch, serverTimestamp, collection, arrayUnion, Timestamp, updateDoc, deleteDoc, getDoc, query, where, getDocs } from 'firebase/firestore';
-import { firebaseConfig, db } from '../lib/firebase';
+import { doc, writeBatch, serverTimestamp, collection, arrayUnion, Timestamp, updateDoc, deleteDoc, getDoc, query, where, getDocs, addDoc } from 'firebase/firestore';
+import { firebaseConfig, db, auth as mainAuth } from '../lib/firebase';
 import { Tenant, Barbershop, User, Notification } from '../types';
 import { DEFAULT_BARBERSHOP_IMAGE, DEFAULT_SERVICES, DEFAULT_FACILITIES, DEFAULT_OPEN_HOUR, DEFAULT_CLOSE_HOUR } from '../lib/constants';
+
+/**
+ * GLOBAL AUDIT TRAIL
+ * Records every sensitive admin action to a central collection
+ */
+const logAdminAction = async (action: string, targetId: string, details: string) => {
+  try {
+    const adminUid = mainAuth.currentUser?.uid || "system";
+    const adminEmail = mainAuth.currentUser?.email || "system";
+    await addDoc(collection(db, "admin_logs"), {
+      admin_uid: adminUid,
+      admin_email: adminEmail,
+      action,
+      target_id: targetId,
+      details,
+      timestamp: serverTimestamp(),
+      platform: "web_admin"
+    });
+  } catch (e) {
+    console.error("Failed to log admin action:", e);
+  }
+};
 
 /**
  * Generates a secure random password for the new tenant admin
@@ -123,6 +145,9 @@ export const approveTenantRegistration = async (tenant: Tenant) => {
 
     // 4. Commit Batch
     await batch.commit();
+
+    // LOG ACTION
+    await logAdminAction("APPROVE_TENANT", tenant.id, `Approved business: ${tenant.business_name}`);
 
     return { 
       success: true, 
@@ -310,6 +335,10 @@ export const suspendTenant = async (tenant: Tenant, reason: string) => {
     batch.set(notificationRef, notificationData);
 
     await batch.commit();
+    
+    // LOG ACTION
+    await logAdminAction("SUSPEND_TENANT", tenant.id, `Reason: ${reason}`);
+
     return { success: true };
   } catch (error: any) {
     console.error("Suspension Error:", error);
@@ -344,6 +373,10 @@ export const deleteTenant = async (tenant: Tenant) => {
     }
 
     await batch.commit();
+
+    // LOG ACTION
+    await logAdminAction("DELETE_TENANT", tenant.id, `Business: ${tenant.business_name}`);
+
     return { success: true };
   } catch (error: any) {
     console.error("Delete Error:", error);
@@ -456,6 +489,10 @@ export const toggleBarbershopStatus = async (shopId: string, isActive: boolean) 
     });
 
     await batch.commit();
+
+    // LOG ACTION
+    await logAdminAction("TOGGLE_SHOP_STATUS", shopId, `Active: ${isActive}`);
+
     return { success: true };
   } catch (error: any) {
     console.error("Toggle Shop Error:", error);
@@ -481,14 +518,15 @@ export const toggleUserSuspension = async (userId: string, isSuspended: boolean)
     shopsSnap.forEach(shopDoc => {
         batch.update(shopDoc.ref, { 
            isActive: !isSuspended,
-           isOpen: !isSuspended ? (shopDoc.data().isOpen) : false
+           isOpen: !isSuspended ? (shopDoc.data() as any).isOpen : false
         });
-        
-        // Note: We don't cascade to Tenant here deeply to keep it fast, 
-        // but the shop deactivation is the critical part.
     });
     
     await batch.commit();
+
+    // LOG ACTION
+    await logAdminAction("TOGGLE_USER_SUSPENSION", userId, `Suspended: ${isSuspended}`);
+
     return { success: true };
   } catch (error: any) {
     console.error("Toggle User Error:", error);
